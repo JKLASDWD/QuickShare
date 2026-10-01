@@ -27,7 +27,7 @@ services:
     environment:
       LISTEN: 0.0.0.0:8080
       LIVEKIT_HTTP_URL: http://127.0.0.1:7880
-      LIVEKIT_WS_URL: ws://${SERVER_IP}:7880 # 客户端据此建 WebRTC 连接
+      LIVEKIT_WS_URL: ${LIVEKIT_WS_URL:-ws://${SERVER_IP}:7880} # 可覆盖为外部映射后的完整信令地址
       LIVEKIT_API_KEY: devkey
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
       AUTH_TOKEN: ${AUTH_TOKEN} # 必填：REQUIRE_AUTH=1 时缺失拒绝启动
