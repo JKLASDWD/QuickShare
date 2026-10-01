@@ -15,6 +15,7 @@ const {
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { validateTlsSettings, installCertificatePolicy } = require('./certificate-policy');
 // 联调使用隔离配置，避免测试读写用户的日常配置。
 if (process.argv.includes('--smoke') && process.env.QUICKSHARE_SMOKE_DATA) {
   app.setPath('userData', process.env.QUICKSHARE_SMOKE_DATA);
@@ -48,6 +49,7 @@ const CONFIG_DEFAULTS = {
   hotkey: 'Control+Alt+S',
   displayName: '',
   authToken: '', // 服务端可选 Bearer（IP 直连公网部署时开启）
+  serverCertificateSha256: '', // 自签名 IP HTTPS：预先核对的服务器证书 SHA-256 指纹
   maxBitrateKbps: 8000, // 1080p 屏幕文字内容 4M 偏紧易糊；新装机默认 8M（已落盘配置可在设置里改）
 };
 
@@ -147,7 +149,7 @@ function createSettingsWindow() {
   }
   settingsWin = new BrowserWindow({
     width: 480,
-    height: 560,
+    height: 700,
     show: false,
     icon: ICON,
     title: '设置',
@@ -276,7 +278,9 @@ ipcMain.handle('list-sources', async (_e, types) => {
 
 ipcMain.handle('get-config', () => { log('get-config'); return { ...config, configPath: resolveConfigPath() }; });
 ipcMain.handle('save-config', (_e, patch) => {
-  config = { ...config, ...patch };
+  const next = { ...config, ...patch };
+  next.serverCertificateSha256 = validateTlsSettings(next);
+  config = next;
   persistConfig();
   registerHotkey();
   buildTrayMenu();
@@ -330,6 +334,8 @@ if (!gotLock) {
     try {
       log('app-ready', { version: app.getVersion(), electron: process.versions.electron, cdp: process.env.QUICKSHARE_CDP || null });
       config = loadConfig();
+      validateTlsSettings(config);
+      installCertificatePolicy(session.defaultSession, () => config, (details) => log('certificate-rejected', details));
       log('config-loaded', { path: resolveConfigPath(), server: config.server });
       if (smokeArgv) return runSmoke(smokeArgv);
       // getDisplayMedia（系统选择器共享）：Windows 优先系统原生选择器；不可用时按官方文档回退 desktopCapturer

@@ -1,0 +1,15 @@
+{
+	auto_https disable_redirects
+	# IP URLs usually omit SNI. Docker's internal IP differs from the certificate IP.
+	default_sni {$SERVER_IP}
+}
+
+https://{$SERVER_IP} {
+	tls /etc/caddy/certs/server.crt /etc/caddy/certs/server.key
+	handle /api/* {
+		reverse_proxy token:8080
+	}
+	handle {
+		reverse_proxy host.docker.internal:7880
+	}
+}

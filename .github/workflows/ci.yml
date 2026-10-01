@@ -29,7 +29,8 @@ jobs:
         run: |
           node --check server/token-service/server.mjs
           node --check client/main.js
+          node --check client/certificate-policy.js
           node --check client/preload.js
           node --check tests/livekit-e2e.cjs
       - name: Run API and lifecycle regression tests
-        run: node --test tests/review-regression.test.cjs
+        run: node --test tests/review-regression.test.cjs tests/certificate-policy.test.cjs

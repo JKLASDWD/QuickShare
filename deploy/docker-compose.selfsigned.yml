@@ -1,0 +1,43 @@
+# Linux host: direct IP HTTPS/WSS with a pre-generated, pinned server certificate.
+# docker-compose -p quickshare -f docker-compose.selfsigned.yml up -d --build
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    restart: unless-stopped
+    command: --config /etc/livekit/livekit.yaml
+    network_mode: host
+    volumes:
+      - ./livekit.yaml:/etc/livekit/livekit.yaml:ro
+
+  token:
+    build: ../server/token-service
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      LISTEN: 0.0.0.0:8080
+      LIVEKIT_HTTP_URL: http://host.docker.internal:7880
+      LIVEKIT_WS_URL: wss://${SERVER_IP:?Set SERVER_IP in .env}:${TLS_PORT:-8989}
+      LIVEKIT_API_KEY: devkey
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?Set LIVEKIT_API_SECRET in .env}
+      AUTH_TOKEN: ${AUTH_TOKEN:?Set AUTH_TOKEN in .env}
+      REQUIRE_AUTH: "1"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      SERVER_IP: ${SERVER_IP:?Set SERVER_IP in .env}
+    ports:
+      - "${TLS_PORT:-8989}:443"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./caddy/Caddyfile.selfsigned:/etc/caddy/Caddyfile:ro
+      - ./caddy/certs:/etc/caddy/certs:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

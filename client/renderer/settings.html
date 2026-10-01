@@ -29,6 +29,7 @@
   </div>
   <div class="field"><label>最大码率 Kbps（1080p 建议 8000；4K/内网可 20000+，家宽上行低可降至 4000）</label><input id="maxBitrateKbps" type="number" min="500" step="500" inputmode="numeric" /></div>
   <div class="field"><label>访问令牌（服务端开启鉴权时填写，可留空）</label><input id="authToken" maxlength="128" autocomplete="off" /></div>
+  <div class="field"><label>服务器证书 SHA-256 指纹（自签名 IP HTTPS 时填写）</label><input id="serverCertificateSha256" placeholder="64 位十六进制值，可带冒号" autocomplete="off" /><div class="path" style="margin-top:4px">从管理员处核对指纹。修改服务器地址或指纹后，请退出托盘并重新启动应用。</div></div>
   <div style="display:flex; align-items:center; gap:12px; margin-top:18px">
     <button id="saveBtn">保存</button><span class="msg" id="msg"></span>
   </div>
@@ -50,6 +51,7 @@ async function init() {
   $('defaultRoomId').value = cfg.defaultRoomId;
   $('hotkey').value = cfg.hotkey;
   $('authToken').value = cfg.authToken || '';
+  $('serverCertificateSha256').value = cfg.serverCertificateSha256 || '';
   $('maxBitrateKbps').value = cfg.maxBitrateKbps;
   $('configPath').textContent = `配置文件：${cfg.configPath}`;
   $('saveBtn').onclick = save;
@@ -76,6 +78,7 @@ function captureKey(e) {
   $('msg').textContent = '';
 }
 async function save() {
+  try {
   const bitrate = Math.max(500, parseInt(String($('maxBitrateKbps').value).replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0)).replace(/[^\d]/g, ''), 10) || 8000);
   cfg = await bridge.saveConfig({
     server: $('server').value.trim().replace(/\/+$/, ''),
@@ -83,12 +86,15 @@ async function save() {
     defaultRoomId: $('defaultRoomId').value.trim(),
     hotkey: $('hotkey').value.trim() || 'Control+Alt+S',
     authToken: $('authToken').value.trim(),
+    serverCertificateSha256: $('serverCertificateSha256').value.trim(),
     maxBitrateKbps: bitrate,
   });
   $('maxBitrateKbps').value = cfg.maxBitrateKbps;
   $('configPath').textContent = `配置文件：${cfg.configPath}`;
-  $('msg').textContent = '已保存（热键即时生效）';
+  $('serverCertificateSha256').value = cfg.serverCertificateSha256 || '';
+  $('msg').textContent = '已保存；地址或证书变更需重启应用';
   setTimeout(() => ($('msg').textContent = ''), 2200);
+  } catch (err) { $('msg').textContent = err.message || '保存失败'; }
 }
 })();
 </script>

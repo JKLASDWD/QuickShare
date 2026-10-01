@@ -1,13 +1,13 @@
 {
   "name": "screenshare-client",
   "productName": "QuickShare",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "description": "快捷屏幕共享客户端（共享/观看双角色，LiveKit SFU）",
   "main": "main.js",
   "author": "internal",
   "license": "MIT",
   "scripts": {
-    "test": "node --test ../tests/review-regression.test.cjs",
+    "test": "node --test ../tests/review-regression.test.cjs ../tests/certificate-policy.test.cjs",
     "test:e2e": "node ../tests/livekit-e2e.cjs",
     "postinstall": "node scripts/fetch-vendor.mjs && node scripts/gen-icon.mjs",
     "start": "electron .",
@@ -23,6 +23,7 @@
     },
     "files": [
       "main.js",
+      "certificate-policy.js",
       "preload.js",
       "renderer/**",
       "assets/**",
