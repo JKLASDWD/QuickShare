@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>设置</title>
+<style>
+  :root { --bg:#151923; --panel:#1d2330; --line:#2c3446; --txt:#e8ecf4; --dim:#8b94a7; --acc:#3d9eff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:14px/1.6 "Segoe UI","Microsoft YaHei",sans-serif; padding:18px; }
+  .field { margin-bottom:14px; }
+  label { display:block; font-size:12px; color:var(--dim); margin-bottom:4px; }
+  input { width:100%; background:#12161f; border:1px solid var(--line); color:var(--txt); border-radius:6px; padding:8px 10px; font-size:14px; }
+  input:focus { outline:none; border-color:var(--acc); }
+  input[readonly] { color:var(--acc); cursor:pointer; }
+  .hotkey-row { display:flex; gap:8px; }
+  .hotkey-row input { flex:1; }
+  button { background:var(--acc); color:#fff; border:0; border-radius:8px; padding:8px 18px; font-size:14px; cursor:pointer; }
+  button.ghost { background:transparent; border:1px solid var(--line); color:var(--dim); }
+  .path { font-size:11px; color:var(--dim); word-break:break-all; margin-top:16px; }
+  .msg { color:#3ecf8e; font-size:13px; height:20px; }
+</style>
+</head>
+<body>
+  <div class="field"><label>服务器地址（Token 服务）</label><input id="server" placeholder="https://share.example.com" /></div>
+  <div class="field"><label>显示名（共享时展示给同事）</label><input id="displayName" maxlength="64" /></div>
+  <div class="field"><label>默认房间号（每次共享预填）</label><input id="defaultRoomId" maxlength="32" /></div>
+  <div class="field"><label>全局热键（唤起共享选择器）</label>
+    <div class="hotkey-row"><input id="hotkey" readonly title="点击右侧按钮后按下组合键" /><button class="ghost" id="recordBtn">录制</button></div>
+  </div>
+  <div class="field"><label>最大码率 Kbps（1080p 建议 8000；4K/内网可 20000+，家宽上行低可降至 4000）</label><input id="maxBitrateKbps" type="number" min="500" step="500" inputmode="numeric" /></div>
+  <div class="field"><label>访问令牌（服务端开启鉴权时填写，可留空）</label><input id="authToken" maxlength="128" autocomplete="off" /></div>
+  <div style="display:flex; align-items:center; gap:12px; margin-top:18px">
+    <button id="saveBtn">保存</button><span class="msg" id="msg"></span>
+  </div>
+  <div class="path" id="configPath"></div>
+<script>
+'use strict';
+(() => {
+const bridge = window.bridge || {
+  getConfig: async () => ({ server: 'http://localhost:8080', displayName: '浏览器测试', defaultRoomId: '', hotkey: 'Control+Alt+S', maxBitrateKbps: 4000, configPath: '(browser)' }),
+  saveConfig: async (patch) => ({ ...patch, configPath: '(browser)' }),
+};
+const $ = (id) => document.getElementById(id);
+let cfg = null, recording = false;
+init();
+async function init() {
+  cfg = await bridge.getConfig();
+  $('server').value = cfg.server;
+  $('displayName').value = cfg.displayName;
+  $('defaultRoomId').value = cfg.defaultRoomId;
+  $('hotkey').value = cfg.hotkey;
+  $('authToken').value = cfg.authToken || '';
+  $('maxBitrateKbps').value = cfg.maxBitrateKbps;
+  $('configPath').textContent = `配置文件：${cfg.configPath}`;
+  $('saveBtn').onclick = save;
+  $('recordBtn').onclick = toggleRecord;
+  document.addEventListener('keydown', (e) => { if (recording) { e.preventDefault(); captureKey(e); } }, true);
+}
+function toggleRecord() {
+  recording = !recording;
+  $('recordBtn').textContent = recording ? '按下组合键…' : '录制';
+}
+function captureKey(e) {
+  const mods = [];
+  if (e.ctrlKey) mods.push('Control');
+  if (e.metaKey) mods.push('Command');
+  if (e.altKey) mods.push('Alt');
+  if (e.shiftKey) mods.push('Shift');
+  const k = e.key;
+  if (['Control','Shift','Alt','Meta'].includes(k)) { $('hotkey').value = [...mods, k === 'Meta' ? 'Command' : k].join('+'); return; }
+  if (!mods.length || k.length !== 1 && !/^F\d{1,2}$/.test(k)) { $('msg').textContent = '需至少一个修饰键 + 普通键'; return; }
+  const key = /^F\d{1,2}$/.test(k) ? k : k.toUpperCase();
+  $('hotkey').value = `${mods.join('+')}+${key}`;
+  recording = false;
+  $('recordBtn').textContent = '录制';
+  $('msg').textContent = '';
+}
+async function save() {
+  const bitrate = Math.max(500, parseInt(String($('maxBitrateKbps').value).replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0)).replace(/[^\d]/g, ''), 10) || 8000);
+  cfg = await bridge.saveConfig({
+    server: $('server').value.trim().replace(/\/+$/, ''),
+    displayName: $('displayName').value.trim() || '用户',
+    defaultRoomId: $('defaultRoomId').value.trim(),
+    hotkey: $('hotkey').value.trim() || 'Control+Alt+S',
+    authToken: $('authToken').value.trim(),
+    maxBitrateKbps: bitrate,
+  });
+  $('maxBitrateKbps').value = cfg.maxBitrateKbps;
+  $('configPath').textContent = `配置文件：${cfg.configPath}`;
+  $('msg').textContent = '已保存（热键即时生效）';
+  setTimeout(() => ($('msg').textContent = ''), 2200);
+}
+})();
+</script>
+</body>
+</html>

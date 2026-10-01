@@ -1,0 +1,35 @@
+name: Regression tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Check JavaScript syntax
+        run: |
+          node --check server/token-service/server.mjs
+          node --check client/main.js
+          node --check client/preload.js
+          node --check tests/livekit-e2e.cjs
+      - name: Run API and lifecycle regression tests
+        run: node --test tests/review-regression.test.cjs

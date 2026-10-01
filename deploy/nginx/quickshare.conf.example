@@ -1,0 +1,56 @@
+# Include this file inside Nginx's http context (for example conf.d/*.conf).
+# Replace domain and certificate paths before activating. Certificates must exist.
+map $http_upgrade $quickshare_connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    listen 80;
+    server_name share.example.com;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/quickshare-acme;
+        try_files $uri =404;
+    }
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    server_name share.example.com;
+
+    ssl_certificate /etc/letsencrypt/live/share.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/share.example.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    location ^~ /api/ {
+        # No trailing slash: retain the /api/ prefix.
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Authorization $http_authorization;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 30s;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:7880;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $quickshare_connection_upgrade;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_buffering off;
+    }
+}

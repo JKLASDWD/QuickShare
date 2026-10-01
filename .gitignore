@@ -1,0 +1,40 @@
+# Dependencies and generated distribution files
+node_modules/
+dist/
+coverage/
+/client/renderer/vendor/
+/client/assets/icon.png
+
+# Local LiveKit binaries; retain documentation and license
+/tools/*
+!/tools/LICENSE
+!/tools/README.md
+
+# Local configuration, credentials and certificates
+.env
+.env.*
+!.env.example
+!*.env.example
+/client/config.json
+/server/token-service/config.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+.npmrc
+
+# Logs, caches and backups
+*.log
+*.rar
+*.zip
+*.7z
+*.tar
+*.tar.gz
+*.bak
+*.tmp
+__pycache__/
+.DS_Store
+Thumbs.db
+/.review-tmp/

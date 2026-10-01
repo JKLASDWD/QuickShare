@@ -1,0 +1,16 @@
+{
+  "listen": "0.0.0.0:8080",
+  "livekit": {
+    "httpUrl": "http://localhost:7880",
+    "wsUrl": "ws://localhost:7880",
+    "apiKey": "devkey",
+    "apiSecret": "secret"
+  },
+  "rooms": {
+    "tokenTtlMinutes": 240,
+    "requirePassword": false,
+    "maxRoomIdLength": 32,
+    "emptyTimeoutSeconds": 60
+  },
+  "authToken": ""
+}

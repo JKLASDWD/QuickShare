@@ -1,0 +1,65 @@
+{
+  "name": "screenshare-client",
+  "productName": "QuickShare",
+  "version": "0.2.8",
+  "description": "快捷屏幕共享客户端（共享/观看双角色，LiveKit SFU）",
+  "main": "main.js",
+  "author": "internal",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test ../tests/review-regression.test.cjs",
+    "test:e2e": "node ../tests/livekit-e2e.cjs",
+    "postinstall": "node scripts/fetch-vendor.mjs && node scripts/gen-icon.mjs",
+    "start": "electron .",
+    "smoke": "electron . --smoke",
+    "dist": "electron-builder --win",
+    "dist:portable": "electron-builder --win portable"
+  },
+  "build": {
+    "appId": "com.internal.quickshare",
+    "productName": "QuickShare",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**",
+      "assets/**",
+      "config.example.json",
+      "package.json"
+    ],
+    "win": {
+      "icon": "assets/icon.png",
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "QuickShare-Portable-${version}.exe"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "artifactName": "QuickShare-Setup-${version}.exe",
+      "shortcutName": "QuickShare"
+    }
+  },
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
+    "livekit-client": "^2.22.3"
+  },
+  "dependencies": {}
+}

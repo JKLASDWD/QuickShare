@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8" /><title>smoke-engine</title></head>
+<body>
+<canvas id="canvas" width="1280" height="720" style="display:none"></canvas>
+<video id="video" muted autoplay playsinline style="width:640px;height:360px"></video>
+<script src="vendor/livekit-client.js"></script>
+<script>
+'use strict';
+(() => {
+// 冒烟引擎：--smoke publish <room> 用画布测试图案推流；--smoke watch <room> 订阅并校验收到画面
+const LK = window.LivekitClient;
+const q = new URLSearchParams(location.search);
+// bridge 兜底：纯浏览器（无 Electron preload）时降级为 console 输出
+const bridge = window.bridge || {
+  smokeLog: (o) => console.log('SMOKE ' + JSON.stringify(o)),
+  smokeExit: (code, summary) => { console.log('SMOKE-EXIT ' + code + (summary ? ' ' + JSON.stringify(summary) : '')); document.title = 'SMOKE-EXIT:' + code; },
+};
+const mode = q.get('mode'), ROOM = q.get('room'), SERVER = q.get('server'), DURATION = Number(q.get('duration')) || 20000;
+
+const log = (obj) => bridge.smokeLog({ ...obj, mode, ts: Date.now() });
+const exit = (code, summary) => bridge.smokeExit(code, summary);
+const die = (stage, err) => { log({ event: 'error', stage, message: String(err?.message || err) }); exit(1, { stage, ok: false }); };
+const watchdog = setTimeout(() => die('watchdog', `timeout ${DURATION + 15000}ms`), DURATION + 15000);
+const done = (summary) => { clearTimeout(watchdog); exit(0, summary); };
+
+const api = async (path, opts = {}) => {
+  const config = await bridge.getConfig?.();
+  const res = await fetch(`${SERVER}${path}`, { ...opts, signal: AbortSignal.timeout(10000),
+    headers: { ...opts.headers, ...(config?.authToken ? { authorization: `Bearer ${config.authToken}` } : {}) } });
+  return { ok: res.ok, status: res.status, data: await res.json() };
+};
+
+async function publishSmoke() {
+  const t0 = Date.now();
+  // 1. 建房
+  const create = await api('/api/rooms', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ roomId: ROOM, presenter: 'smoke' }),
+  });
+  if (!create.ok) return die('create-room', create.data.error || create.status);
+  // 2. 画布测试图案
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  let frames = 0;
+  const draw = setInterval(() => {
+    ctx.fillStyle = '#10141d'; ctx.fillRect(0, 0, 1280, 720);
+    const x = ((Date.now() / 8) % 1480) - 100;
+    for (let i = 0; i < 6; i++) { ctx.fillStyle = `hsl(${i * 60}, 80%, 55%)`; ctx.fillRect(x + i * 60, 80, 60, 560); }
+    ctx.fillStyle = '#fff'; ctx.font = '48px monospace';
+    ctx.fillText(`SMOKE ${ROOM} frame=${frames}`, 60, 660);
+    ctx.font = '28px monospace'; ctx.fillStyle = '#9aa4b8';
+    ctx.fillText(new Date().toISOString(), 60, 700);
+    frames++;
+  }, 33);
+  // 3. 推流
+  const stream = canvas.captureStream(30);
+  const room = new LK.Room({ adaptiveStream: false, dynacast: false });
+  await room.connect(create.data.url, create.data.token);
+  const track = new LK.LocalVideoTrack(stream.getVideoTracks()[0]);
+  const pub = await room.localParticipant.publishTrack(track, { source: LK.Track.Source.ScreenShare, name: 'smoke-pattern', videoEncoding: { maxBitrate: 4e6, priority: 'high' } });
+  log({ event: 'published', room: ROOM, trackSid: pub.trackSid, msSinceStart: Date.now() - t0 });
+  // 4. 保持推流到时长后退出
+  setTimeout(async () => {
+    clearInterval(draw);
+    await room.disconnect();
+    const stopped = await api(`/api/rooms/${encodeURIComponent(ROOM)}`, {
+      method: 'DELETE', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ownerToken: create.data.ownerToken }),
+    });
+    if (!stopped.ok && stopped.status !== 404) return die('delete-room', stopped.data.error);
+    done({ stage: 'publish', ok: true, room: ROOM, framesDrawn: frames, publishedMs: Date.now() - t0 });
+  }, DURATION);
+}
+
+async function watchSmoke() {
+  const t0 = Date.now();
+  // 1. 房间列表
+  const list = await api('/api/rooms');
+  if (!list.ok) return die('list-rooms', list.data.error || list.status);
+  log({ event: 'rooms', count: list.data.rooms.length, ids: list.data.rooms.map((r) => r.roomId) });
+  // 2. 进房
+  const join = await api(`/api/rooms/${encodeURIComponent(ROOM)}/join`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'smoke-watcher' }),
+  });
+  if (!join.ok) return die('join-room', join.data.error || join.status);
+  // 3. 订阅首帧校验
+  const video = document.getElementById('video');
+  let firstFrameMs = null;
+  const room = new LK.Room({ adaptiveStream: false });
+  room.on(LK.RoomEvent.TrackSubscribed, (track) => {
+    if (track.kind !== LK.Track.Kind.Video) return;
+    track.attach(video);
+  });
+  await room.connect(join.data.url, join.data.token);
+  const firstFrameTimer = setInterval(() => {
+    if (video.readyState >= 2 && video.videoWidth > 0) {
+      firstFrameMs = Date.now() - t0;
+      clearInterval(firstFrameTimer);
+      log({ event: 'first-frame', w: video.videoWidth, h: video.videoHeight, msSinceStart: firstFrameMs });
+      // 收帧 3 秒后结束
+      const q0 = video.getVideoPlaybackQuality().totalVideoFrames;
+      setTimeout(() => {
+        const q1 = video.getVideoPlaybackQuality().totalVideoFrames;
+        if (q1 <= q0) { awaitDisconnect(); return die('video-stalled', 'no new frames in 3s'); }
+        const resolution = `${video.videoWidth}x${video.videoHeight}`;
+        room.disconnect().finally(() =>
+          done({ stage: 'watch', ok: true, room: ROOM, firstFrameMs, framesIn3s: q1 - q0, resolution })
+        );
+      }, 3000);
+    }
+  }, 100);
+  function awaitDisconnect() { room.disconnect().catch(() => {}); }
+  const noFrame = setTimeout(() => { if (firstFrameMs === null) die('first-frame', `no video frame in 15s`); }, 15000);
+  setTimeout(() => clearTimeout(noFrame), 20000);
+}
+
+(mode === 'publish' ? publishSmoke() : watchSmoke()).catch((e) => die('unhandled', e));
+})();
+</script>
+</body>
+</html>

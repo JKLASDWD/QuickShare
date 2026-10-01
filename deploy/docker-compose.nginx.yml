@@ -1,0 +1,25 @@
+# Existing Nginx runs on the same Linux host and owns ports 80/443.
+# Fill deploy/.env and livekit.yaml; do not start the Caddy compose stack too.
+# docker-compose -p quickshare-nginx -f docker-compose.nginx.yml up -d --build
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    restart: unless-stopped
+    command: --config /etc/livekit.yaml
+    network_mode: host
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+
+  token:
+    build: ../server/token-service
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      # Only host processes (including host Nginx) can reach this API.
+      LISTEN: 127.0.0.1:8080
+      LIVEKIT_HTTP_URL: http://127.0.0.1:7880
+      LIVEKIT_WS_URL: wss://${SHARE_DOMAIN:?Set SHARE_DOMAIN in .env}
+      LIVEKIT_API_KEY: devkey
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?Set LIVEKIT_API_SECRET in .env}
+      AUTH_TOKEN: ${AUTH_TOKEN:?Set AUTH_TOKEN in .env}
+      REQUIRE_AUTH: "1"

@@ -1,0 +1,7 @@
+{
+  "server": "http://localhost:8080",
+  "hotkey": "Control+Alt+S",
+  "displayName": "",
+  "defaultRoomId": "",
+  "maxBitrateKbps": 4000
+}

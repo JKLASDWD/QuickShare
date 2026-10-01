@@ -1,0 +1,44 @@
+# 屏幕共享服务端一键部署：改 Caddyfile 域名 + livekit.yaml 密钥后
+#   docker-compose up -d
+# 防火墙放行：80,443/tcp(caddy) 7881/tcp(媒体TCP) 3478/udp(TURN) 50000-60000/udp(媒体UDP)
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    restart: unless-stopped
+    command: --config /etc/livekit/livekit.yaml
+    # host 网络：WebRTC UDP 端口段无需逐个映射（Linux VPS）
+    network_mode: host
+    volumes:
+      - ./livekit.yaml:/etc/livekit/livekit.yaml
+
+  token:
+    build: ../server/token-service
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      LISTEN: 0.0.0.0:8080
+      # livekit 在 host 网络，容器内经 host-gateway 访问
+      LIVEKIT_HTTP_URL: http://host.docker.internal:7880
+      # 下发给客户端的信令地址（wss 走 caddy 443）
+      LIVEKIT_WS_URL: wss://share.example.com
+      LIVEKIT_API_KEY: devkey # 与 livekit.yaml keys 保持一致，生产必改
+      LIVEKIT_API_SECRET: secret # 与 livekit.yaml keys 保持一致，生产必改
+      AUTH_TOKEN: ${AUTH_TOKEN:-} # 可选 API 访问令牌；公网部署建议设置
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

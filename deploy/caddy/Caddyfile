@@ -1,0 +1,11 @@
+# 改成你的域名（DNS A 记录指向 VPS 公网 IP），Caddy 自动签发 TLS
+share.example.com {
+	# 客户端 API（建房/房间列表/进房）
+	handle /api/* {
+		reverse_proxy token:8080
+	}
+	# LiveKit 信令（WSS）及其余流量
+	handle {
+		reverse_proxy host.docker.internal:7880
+	}
+}
