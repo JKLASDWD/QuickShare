@@ -96,7 +96,6 @@ npm install && npm run dist
 
 完整步骤见 [服务端部署指南](docs/服务端部署指南.md)，包含 HTTPS/IP 两种方案、鉴权与防火墙配置、验收、升级回滚及故障排查。
 如果已有 Nginx，使用 [已有 Nginx 部署指南](docs/已有Nginx部署指南.md) 和 `deploy/docker-compose.nginx.yml`；只启动 LiveKit 与 Token，复用现有 Nginx 的 HTTPS 入口。
-使用 Cloudflare A 记录时，见 [Cloudflare 与 Nginx 配置](docs/Cloudflare与Nginx配置.md)，可按域名生成配置文件。
 
 ```bash
 cd deploy

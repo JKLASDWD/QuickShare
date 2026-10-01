@@ -1,7 +1,5 @@
 # 使用已有 Nginx 部署 QuickShare
 
-使用 Cloudflare A 记录时，可以结合 [Cloudflare 与 Nginx 配置](Cloudflare与Nginx配置.md) 按域名生成配置，并核对灰云、橙云与媒体端口设置。
-
 服务器已经运行 Nginx 时，可以复用它作为 HTTPS 入口。**Caddy 不需要装在宿主机上；原方案里的 Caddy 本身就是容器。** 本方案直接不启动 Caddy，新增的 Compose 文件只运行 LiveKit 和 Token 服务，80/443 继续由现有 Nginx 使用。
 
 本文默认 Nginx 安装在同一台 Linux 宿主机上。若 Nginx 是 Docker 容器，先阅读最后的网络说明；容器中的 `127.0.0.1` 指向该容器自身，不能直接照搬宿主机配置。
