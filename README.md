@@ -96,7 +96,7 @@ npm install && npm run dist
 
 完整步骤见 [服务端部署指南](docs/服务端部署指南.md)，包含 HTTPS/IP 两种方案、鉴权与防火墙配置、验收、升级回滚及故障排查。
 如果已有 Nginx，使用 [已有 Nginx 部署指南](docs/已有Nginx部署指南.md) 和 `deploy/docker-compose.nginx.yml`；只启动 LiveKit 与 Token，复用现有 Nginx 的 HTTPS 入口。
-使用 IP、非标准端口和自签名证书时，见 [IP 自签名 HTTPS 部署](docs/IP自签名HTTPS部署.md)，新版客户端支持预先核对证书指纹。
+使用 IP、非标准端口和自签名证书时，见 [IP 自签名 HTTPS 部署](docs/IP自签名HTTPS部署.md)，新版客户端提供仅针对配置服务器的“信任不匹配证书”选项。
 
 ```bash
 cd deploy

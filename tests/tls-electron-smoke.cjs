@@ -2,7 +2,7 @@
 // Optional real Chromium HTTPS/WSS check. Supply an IP-SAN certificate and its test-only key.
 const path = require('node:path');
 const fs = require('node:fs');
-const { X509Certificate, createHash } = require('node:crypto');
+const { createHash } = require('node:crypto');
 const { installCertificatePolicy } = require('../client/certificate-policy');
 
 if (process.versions.electron) {
@@ -12,13 +12,25 @@ if (process.versions.electron) {
   const timeout = setTimeout(() => app.exit(2), 20000);
   app.whenReady().then(async () => {
     const base = process.env.QUICKSHARE_TLS_TEST_URL;
-    for (const mode of ['default', 'match', 'mismatch']) {
+    for (const mode of ['default', 'enabled', 'other-host']) {
       const partition = `tls-smoke-${mode}`;
       const ses = session.fromPartition(partition);
-      const pin = mode === 'match' ? process.env.QUICKSHARE_TLS_TEST_PIN : mode === 'mismatch' ? 'A'.repeat(64) : '';
-      installCertificatePolicy(ses, () => ({ server: base, serverCertificateSha256: pin }));
+      const server = mode === 'other-host' ? base.replace('127.0.0.1', 'localhost') : base;
+      installCertificatePolicy(ses, () => ({ server, trustInvalidServerCertificate: mode !== 'default' }));
       const win = new BrowserWindow({ show: false, webPreferences: { partition, contextIsolation: true, nodeIntegration: false } });
       await win.loadFile(path.join(__dirname, '../client/renderer/settings.html'));
+      if (mode === 'default') {
+        const settings = await win.webContents.executeJavaScript(`(() => {
+          const checkbox = document.getElementById('trustInvalidServerCertificate');
+          const result = { defaultOff: checkbox?.checked === false, noPin: !document.getElementById('serverCertificateSha256') };
+          checkbox.checked = true;
+          document.getElementById('server').dispatchEvent(new Event('input'));
+          result.addressChangeClearsTrust = checkbox.checked === false;
+          return result;
+        })()`);
+        if (Object.values(settings).some(value => value !== true)) throw new Error(`Settings: ${JSON.stringify(settings)}`);
+        console.log('PASS settings: default off, no fingerprint field, address change clears trust');
+      }
       const result = await win.webContents.executeJavaScript(`(async () => {
         const result = { https: false, wss: false };
         try { const r = await fetch(${JSON.stringify(base)} + '/api/health'); result.https = r.ok && (await r.json()).ok; } catch {}
@@ -31,7 +43,7 @@ if (process.versions.electron) {
         return result;
       })()`);
       win.destroy();
-      const expected = mode === 'match';
+      const expected = mode === 'enabled';
       if (result.https !== expected || result.wss !== expected) throw new Error(`${mode}: ${JSON.stringify(result)}`);
       console.log(`PASS ${mode}: HTTPS=${result.https}, WSS=${result.wss}`);
     }
@@ -60,7 +72,7 @@ if (process.versions.electron) {
     server.listen(0, '127.0.0.1');
     await once(server, 'listening');
     try {
-      const env = { ...process.env, QUICKSHARE_TLS_TEST_URL: `https://127.0.0.1:${server.address().port}`, QUICKSHARE_TLS_TEST_PIN: new X509Certificate(cert).fingerprint256 };
+      const env = { ...process.env, QUICKSHARE_TLS_TEST_URL: `https://127.0.0.1:${server.address().port}` };
       delete env.ELECTRON_RUN_AS_NODE;
       const electron = require('../client/node_modules/electron');
       const child = spawn(electron, [__filename, '--no-sandbox'], { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -71,7 +83,7 @@ if (process.versions.electron) {
       const [code, signal] = await once(child, 'exit');
       clearTimeout(timer);
       if (code !== 0) throw new Error(`Electron TLS smoke failed: exit=${code}, signal=${signal}`);
-      if (['default', 'match', 'mismatch'].some(mode => !output.includes(`PASS ${mode}:`))) {
+      if (['default', 'enabled', 'other-host'].some(mode => !output.includes(`PASS ${mode}:`))) {
         throw new Error('Electron exited without completing all HTTPS/WSS cases');
       }
     } finally {

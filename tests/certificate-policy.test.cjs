@@ -1,67 +1,53 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { X509Certificate } = require('node:crypto');
-const fixtures = require('./certificate-fixtures.cjs');
-const { normalizeFingerprint, validateTlsSettings, certificateDecision, installCertificatePolicy } = require('../client/certificate-policy');
-const certificate = new X509Certificate(fixtures.ip);
-const pin = certificate.fingerprint256;
-const config = { server: 'https://127.0.0.1:8989', serverCertificateSha256: pin };
-const request = { hostname: '127.0.0.1', certificate: { data: fixtures.ip }, verificationResult: 'CERT_AUTHORITY_INVALID' };
-const during = Date.parse(certificate.validFrom) + 1000;
+const { validateTlsSettings, certificateDecision, installCertificatePolicy } = require('../client/certificate-policy');
+const config = { server: 'https://127.0.0.1:8989', trustInvalidServerCertificate: true };
+const request = { hostname: '127.0.0.1', verificationResult: 'CERT_AUTHORITY_INVALID' };
 
-test('certificate pin: requires SHA-256 and an HTTPS IP endpoint', () => {
-  assert.equal(normalizeFingerprint(pin.toLowerCase()), pin.replaceAll(':', ''));
-  assert.equal(normalizeFingerprint(''), '');
-  assert.throws(() => normalizeFingerprint('A'.repeat(40)), /SHA-256/);
-  assert.throws(() => validateTlsSettings({ ...config, server: 'http://127.0.0.1:8989' }), /https/);
-  assert.throws(() => validateTlsSettings({ ...config, server: 'https://example.com' }), /IP/);
-  assert.throws(() => validateTlsSettings({ ...config, server: 'https://user:password@127.0.0.1' }), /IP/);
+test('certificate exception: disabled by default and legacy pins do not enable it', () => {
+  assert.equal(validateTlsSettings({ server: 'http://localhost:8080' }), false);
+  assert.equal(certificateDecision({ server: config.server }, request).code, -3);
+  assert.equal(certificateDecision({ ...config, trustInvalidServerCertificate: false }, request).code, -3);
+  assert.equal(certificateDecision({ server: config.server, serverCertificateSha256: 'A'.repeat(64) }, request).code, -3);
+  assert.equal(certificateDecision({ ...config, trustInvalidServerCertificate: 'true' }, request).code, -3);
 });
 
-test('certificate pin: accepts the exact leaf only for its IP, both HTTPS and WSS host verification', () => {
-  assert.equal(certificateDecision(config, request, during).code, 0);
-  assert.equal(certificateDecision({ ...config, server: 'https://127.0.0.1:8443' }, request, during).code, 0);
-  assert.equal(certificateDecision(config, { ...request, hostname: '127.0.0.2' }, during).code, -3);
-  assert.equal(certificateDecision({ ...config, serverCertificateSha256: '' }, request, during).code, -3);
+test('certificate exception: requires an explicit boolean and HTTPS endpoint', () => {
+  assert.equal(validateTlsSettings(config), true);
+  assert.equal(validateTlsSettings({ ...config, server: 'https://example.com:8989' }), true);
+  assert.throws(() => validateTlsSettings({ ...config, server: 'http://127.0.0.1:8989' }), /HTTPS/);
+  assert.throws(() => validateTlsSettings({ ...config, server: 'https://user:password@127.0.0.1' }), /用户名/);
+  assert.throws(() => validateTlsSettings({ ...config, trustInvalidServerCertificate: 'false' }), /布尔/);
 });
 
-test('certificate pin: mismatch is rejected even if Chromium would trust the certificate', () => {
-  assert.equal(certificateDecision({ ...config, serverCertificateSha256: 'A'.repeat(64) }, { ...request, verificationResult: 'OK' }, during).code, -2);
-  assert.equal(certificateDecision({ ...config, serverCertificateSha256: 'bad pin' }, request, during).code, -2);
-  assert.equal(certificateDecision(config, { ...request, certificate: { data: 'malformed' } }, during).code, -2);
+test('certificate exception: accepts certificate errors only for the configured host', () => {
+  for (const error of ['CERT_AUTHORITY_INVALID', 'CERT_COMMON_NAME_INVALID', 'CERT_DATE_INVALID']) {
+    assert.equal(certificateDecision(config, { ...request, verificationResult: error }).code, 0);
+  }
+  assert.equal(certificateDecision(config, { ...request, hostname: '127.0.0.2' }).code, -3);
+  assert.equal(certificateDecision(config, { ...request, hostname: 'example.com' }).code, -3);
+  assert.equal(certificateDecision(config, { ...request, verificationResult: 'OK' }).code, -3);
 });
 
-test('certificate pin: validity and revocation remain enforced', () => {
-  assert.equal(certificateDecision(config, request, Date.parse(certificate.validFrom) - 1).code, -2);
-  assert.equal(certificateDecision(config, request, Date.parse(certificate.validTo)).code, -2);
-  assert.equal(certificateDecision(config, { ...request, verificationResult: 'CERT_REVOKED' }, during).code, -2);
+test('certificate exception: DNS/IPv6 normalization and invalid configurations preserve normal trust', () => {
+  assert.equal(certificateDecision({ ...config, server: 'https://EXAMPLE.com:8989' }, { ...request, hostname: 'example.com' }).code, 0);
+  assert.equal(certificateDecision({ ...config, server: 'https://[::1]:8989' }, { ...request, hostname: '::1' }).code, 0);
+  for (const server of ['http://127.0.0.1:8989', 'not a URL', 'https://user:pw@127.0.0.1']) {
+    assert.equal(certificateDecision({ ...config, server }, request).code, -3);
+  }
 });
 
-test('certificate pin: DNS SAN containing an IP string cannot substitute for an IP SAN', () => {
-  const cert = new X509Certificate(fixtures.dns);
-  assert.equal(certificateDecision({ ...config, serverCertificateSha256: cert.fingerprint256 }, { ...request, certificate: { data: fixtures.dns } }, Date.parse(cert.validFrom) + 1000).code, -2);
-  assert.equal(certificateDecision({ ...config, server: 'https://127.0.0.2:8989' }, { ...request, hostname: '127.0.0.2' }, during).code, -2);
-});
-
-test('certificate pin: serverAuth purpose is required', () => {
-  const cert = new X509Certificate(fixtures.noEku);
-  const result = certificateDecision({ ...config, serverCertificateSha256: cert.fingerprint256 }, { ...request, certificate: { data: fixtures.noEku } }, Date.parse(cert.validFrom) + 1000);
-  assert.equal(result.code, -2);
-  assert.match(result.reason, /serverAuth/);
-});
-
-test('certificate pin: Electron callback preserves normal trust and rejects mismatches without exposing PEM', () => {
-  let handler, current = { ...config, serverCertificateSha256: 'A'.repeat(64) };
-  const rejected = [];
-  installCertificatePolicy({ setCertificateVerifyProc(proc) { handler = proc; } }, () => current, e => rejected.push(e));
+test('certificate exception: callback logs overrides and reads updated checkbox configuration', () => {
+  let handler, current = config;
+  const overridden = [];
+  installCertificatePolicy({ setCertificateVerifyProc(proc) { handler = proc; } }, () => current, event => overridden.push(event));
   let code;
   handler(request, value => { code = value; });
-  assert.equal(code, -2);
-  assert.equal(rejected.length, 1);
-  assert.equal(rejected[0].hostname, '127.0.0.1');
-  assert.ok(!JSON.stringify(rejected).includes('BEGIN CERTIFICATE'));
-  current = { ...config, serverCertificateSha256: '' };
+  assert.equal(code, 0);
+  assert.deepEqual(overridden, [{ hostname: '127.0.0.1', error: 'CERT_AUTHORITY_INVALID' }]);
+  current = { ...config, trustInvalidServerCertificate: false };
   handler(request, value => { code = value; });
   assert.equal(code, -3);
+  assert.equal(overridden.length, 1);
 });

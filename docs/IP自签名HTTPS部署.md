@@ -2,7 +2,7 @@
 
 此方案使用客户端直连 `https://IP:端口`，由项目自带的 Caddy 容器提供 TLS。无需域名、Cloudflare 或外部 Nginx。本文示例为 `47.110.238.15:8989`，换服务器时替换真实 IP。
 
-客户端使用预先核对的服务器证书 SHA-256 指纹验证身份：指纹、IP SAN、有效期和 serverAuth 用途均匹配才允许连接。其他主机仍走系统正常验证；不会全局忽略证书错误。此功能需要使用包含 `certificate-policy.js` 的新版客户端，旧 exe 不会自动获得这个功能。
+新版客户端提供“信任不匹配证书”勾选项，默认关闭。开启后，HTTPS/WSS 仍使用 TLS 加密，但不再验证配置的服务器主机的证书身份，可能遭受中间人攻击。该例外涵盖该主机的各端口；其他主机仍使用 Chromium 正常验证。无需填写 SHA-256 指纹。旧 exe 不会自动获得此功能。
 
 本方案处理连接加密和证书信任，不保证消除云厂商的网络拦截。若 IP 直连仍被阻断，需与云厂商确认该服务的开放方式；自签名证书不能解决 TCP/TLS 连接被关闭的问题。
 
@@ -64,16 +64,15 @@ chmod 600 caddy/certs/server.key
 chmod 644 caddy/certs/server.crt
 ```
 
-已有同名证书时，先备份后再生成。证书必须包含 `IP:47.110.238.15` 类型的 SAN，仅将 CN 或 DNS SAN 写成 IP 不够。证书到期或服务器换 IP 时，需要重新签发并更新客户端指纹。
+已有同名证书时，先备份后再生成。证书必须包含 `IP:47.110.238.15` 类型的 SAN，仅将 CN 或 DNS SAN 写成 IP 不够。证书到期或服务器换 IP 时，需要重新签发并重新启动 Caddy。
 
-查看证书和 SHA-256 指纹：
+查看证书内容：
 
 ```bash
 openssl x509 -in caddy/certs/server.crt -noout -text
-openssl x509 -in caddy/certs/server.crt -noout -fingerprint -sha256
 ```
 
-把第二条输出中等号后面的指纹发给客户端用户。通过你已信任的通信渠道核对；不要将未知网络连接中看到的指纹直接当作可信值。指纹和证书可以分发，`server.key` 私钥只能留在服务器。
+无需计算或分发证书指纹。证书可以分发，用于 curl 的严格验证；`server.key` 私钥只能留在服务器。
 
 ## 3. 验证并启动
 
@@ -117,7 +116,7 @@ API 和信令地址分别为：
 
 1. 服务器地址填 `https://47.110.238.15:8989`。
 2. 访问令牌填 `.env` 中的 `AUTH_TOKEN`。
-3. 服务器证书 SHA-256 指纹填前面核对的 64 位十六进制值，可以保留冒号。
+3. 勾选“信任不匹配证书（仅当前服务器主机）”。确认你接受跳过服务器身份校验的风险。
 4. 保存，从托盘选择“退出”，重新启动应用，避免 Chromium 仍使用旧的证书验证缓存。
 
 也可以在实际使用的 `config.json` 中填写：
@@ -126,13 +125,13 @@ API 和信令地址分别为：
 {
   "server": "https://47.110.238.15:8989",
   "authToken": "你的客户端访问令牌",
-  "serverCertificateSha256": "填写证书SHA256指纹"
+  "trustInvalidServerCertificate": true
 }
 ```
 
-该 JSON 是字段示例，合并到原有配置中即可。指纹字段需要替换成真实值，否则验证不通过。配置路径以设置窗口显示的路径为准。无需将证书导入所有用户的 Windows 根证书库；此信任配置仅影响 QuickShare。
+该 JSON 是字段示例，合并到原有配置中即可。配置路径以设置窗口显示的路径为准。旧的 `serverCertificateSha256` 字段会被移除，不会自动勾选新的信任选项。修改设置中的服务器地址时，勾选项会自动取消，需为新地址重新明确勾选。
 
-改错指纹、过期、SAN 不含该 IP、缺少 serverAuth 用途的证书仍然应报错。错误原因可在配置目录旁的 `main.log` 中找到 `certificate-rejected`。这属于有效的安全检查；不要使用 `--ignore-certificate-errors` 或关闭 TLS 校验。
+开启后，自签名、名称不匹配或过期等证书错误会被忽略。未勾选时保留正常证书验证，因此自签名证书仍会报错。证书例外只作用于配置的服务器主机，不要使用全局 `--ignore-certificate-errors`。被跳过的证书错误会记录在配置目录旁 `main.log` 的 `certificate-trust-override` 中。
 
 ## 5. 防火墙与验收
 
@@ -153,10 +152,10 @@ curl.exe --cacert .\server.crt https://47.110.238.15:8989/api/health
 
 预期返回 `200 {"ok":true}`。通过 API 还需要正确访问令牌；列表只展示有发布者的房间。最后用两个客户端跨网络共享和观看，确认 WSS 和媒体通道都正常。
 
-如果 TCP 连接或 TLS 握手本身被关闭，证书指纹功能无法修复网络拦截。若 curl 成功、客户端仍失败，确认使用新 exe、实际配置路径、指纹、IP、系统时间以及是否完整退出重启。
+如果 TCP 连接或 TLS 握手本身被关闭，证书信任例外无法修复网络拦截。若 curl 成功、客户端仍失败，确认使用新 exe、实际配置路径、信任选项、IP 以及是否完整退出重启。
 
 ## 6. 更新证书
 
-到期前重新生成证书，验证新文件后重建 Caddy，再通过可信渠道更新所有客户端指纹并重启。旧指纹会拒绝新证书，这是预期行为。不要在服务器运行中反复覆盖证书而不通知用户。
+到期前重新生成证书，验证新文件后重建 Caddy。无需更新客户端指纹。未勾选信任例外的客户端或使用严格 curl 验证的用户，需要更新其信任的证书。
 
 实现依据：[Electron 证书验证回调](https://www.electronjs.org/docs/latest/api/session#sessetcertificateverifyprocproc)、[Caddy TLS](https://caddyserver.com/docs/caddyfile/directives/tls)、[默认 SNI](https://caddyserver.com/docs/caddyfile/options#default_sni)、[OpenSSL req](https://docs.openssl.org/3.0/man1/openssl-req/)。

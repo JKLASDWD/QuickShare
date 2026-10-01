@@ -49,7 +49,7 @@ const CONFIG_DEFAULTS = {
   hotkey: 'Control+Alt+S',
   displayName: '',
   authToken: '', // 服务端可选 Bearer（IP 直连公网部署时开启）
-  serverCertificateSha256: '', // 自签名 IP HTTPS：预先核对的服务器证书 SHA-256 指纹
+  trustInvalidServerCertificate: false, // 勾选后仅对配置的服务器主机跳过证书错误
   maxBitrateKbps: 8000, // 1080p 屏幕文字内容 4M 偏紧易糊；新装机默认 8M（已落盘配置可在设置里改）
 };
 
@@ -74,6 +74,7 @@ function loadConfig() {
     } catch {}
   }
   if (!cfg.displayName) cfg.displayName = os.userInfo().username || '用户';
+  delete cfg.serverCertificateSha256; // 旧指纹不自动启用信任例外。
   return cfg;
 }
 const persistConfig = () => fs.writeFileSync(resolveConfigPath(), JSON.stringify(config, null, 2));
@@ -279,7 +280,8 @@ ipcMain.handle('list-sources', async (_e, types) => {
 ipcMain.handle('get-config', () => { log('get-config'); return { ...config, configPath: resolveConfigPath() }; });
 ipcMain.handle('save-config', (_e, patch) => {
   const next = { ...config, ...patch };
-  next.serverCertificateSha256 = validateTlsSettings(next);
+  next.trustInvalidServerCertificate = validateTlsSettings(next);
+  delete next.serverCertificateSha256;
   config = next;
   persistConfig();
   registerHotkey();
@@ -335,7 +337,7 @@ if (!gotLock) {
       log('app-ready', { version: app.getVersion(), electron: process.versions.electron, cdp: process.env.QUICKSHARE_CDP || null });
       config = loadConfig();
       validateTlsSettings(config);
-      installCertificatePolicy(session.defaultSession, () => config, (details) => log('certificate-rejected', details));
+      installCertificatePolicy(session.defaultSession, () => config, (details) => log('certificate-trust-override', details));
       log('config-loaded', { path: resolveConfigPath(), server: config.server });
       if (smokeArgv) return runSmoke(smokeArgv);
       // getDisplayMedia（系统选择器共享）：Windows 优先系统原生选择器；不可用时按官方文档回退 desktopCapturer

@@ -1,4 +1,4 @@
-# Linux host: direct IP HTTPS/WSS with a pre-generated, pinned server certificate.
+# Linux host: direct IP HTTPS/WSS with a pre-generated server certificate.
 # docker-compose -p quickshare -f docker-compose.selfsigned.yml up -d --build
 services:
   livekit:

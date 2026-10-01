@@ -18,6 +18,9 @@
   button.ghost { background:transparent; border:1px solid var(--line); color:var(--dim); }
   .path { font-size:11px; color:var(--dim); word-break:break-all; margin-top:16px; }
   .msg { color:#3ecf8e; font-size:13px; height:20px; }
+  .checkbox-row { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--txt); }
+  .checkbox-row input { width:auto; margin:0; }
+  .certificate-warning { color:#f0b429; font-size:11px; margin-top:4px; }
 </style>
 </head>
 <body>
@@ -29,7 +32,7 @@
   </div>
   <div class="field"><label>最大码率 Kbps（1080p 建议 8000；4K/内网可 20000+，家宽上行低可降至 4000）</label><input id="maxBitrateKbps" type="number" min="500" step="500" inputmode="numeric" /></div>
   <div class="field"><label>访问令牌（服务端开启鉴权时填写，可留空）</label><input id="authToken" maxlength="128" autocomplete="off" /></div>
-  <div class="field"><label>服务器证书 SHA-256 指纹（自签名 IP HTTPS 时填写）</label><input id="serverCertificateSha256" placeholder="64 位十六进制值，可带冒号" autocomplete="off" /><div class="path" style="margin-top:4px">从管理员处核对指纹。修改服务器地址或指纹后，请退出托盘并重新启动应用。</div></div>
+  <div class="field"><label class="checkbox-row"><input type="checkbox" id="trustInvalidServerCertificate" />信任不匹配证书（仅当前服务器主机）</label><div class="certificate-warning">开启后跳过证书错误，无法验证服务器身份，可能遭受中间人攻击。修改后请退出托盘并重启应用。</div></div>
   <div style="display:flex; align-items:center; gap:12px; margin-top:18px">
     <button id="saveBtn">保存</button><span class="msg" id="msg"></span>
   </div>
@@ -47,11 +50,12 @@ init();
 async function init() {
   cfg = await bridge.getConfig();
   $('server').value = cfg.server;
+  $('server').addEventListener('input', () => { $('trustInvalidServerCertificate').checked = false; });
   $('displayName').value = cfg.displayName;
   $('defaultRoomId').value = cfg.defaultRoomId;
   $('hotkey').value = cfg.hotkey;
   $('authToken').value = cfg.authToken || '';
-  $('serverCertificateSha256').value = cfg.serverCertificateSha256 || '';
+  $('trustInvalidServerCertificate').checked = cfg.trustInvalidServerCertificate === true;
   $('maxBitrateKbps').value = cfg.maxBitrateKbps;
   $('configPath').textContent = `配置文件：${cfg.configPath}`;
   $('saveBtn').onclick = save;
@@ -86,12 +90,12 @@ async function save() {
     defaultRoomId: $('defaultRoomId').value.trim(),
     hotkey: $('hotkey').value.trim() || 'Control+Alt+S',
     authToken: $('authToken').value.trim(),
-    serverCertificateSha256: $('serverCertificateSha256').value.trim(),
+    trustInvalidServerCertificate: $('trustInvalidServerCertificate').checked,
     maxBitrateKbps: bitrate,
   });
   $('maxBitrateKbps').value = cfg.maxBitrateKbps;
   $('configPath').textContent = `配置文件：${cfg.configPath}`;
-  $('serverCertificateSha256').value = cfg.serverCertificateSha256 || '';
+  $('trustInvalidServerCertificate').checked = cfg.trustInvalidServerCertificate === true;
   $('msg').textContent = '已保存；地址或证书变更需重启应用';
   setTimeout(() => ($('msg').textContent = ''), 2200);
   } catch (err) { $('msg').textContent = err.message || '保存失败'; }

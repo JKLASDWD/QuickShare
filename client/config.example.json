@@ -1,7 +1,7 @@
 {
   "server": "http://localhost:8080",
   "authToken": "",
-  "serverCertificateSha256": "",
+  "trustInvalidServerCertificate": false,
   "hotkey": "Control+Alt+S",
   "displayName": "",
   "defaultRoomId": "",
