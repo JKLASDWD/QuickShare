@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { collectVendorLicenses } from './vendor-licenses.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const candidates = ['livekit-client.umd.min.js', 'livekit-client.umd.js'];
@@ -15,5 +16,6 @@ const dstDir = path.join(here, '..', 'renderer', 'vendor');
 const dst = path.join(dstDir, 'livekit-client.js');
 fs.mkdirSync(dstDir, { recursive: true });
 fs.copyFileSync(src, dst);
+collectVendorLicenses(path.dirname(nodeModules), path.join(dstDir, 'licenses'));
 const kb = Math.round(fs.statSync(dst).size / 1024);
 console.log(`[fetch-vendor] livekit-client UMD -> renderer/vendor/livekit-client.js (${kb} KB)`);

@@ -40,6 +40,7 @@ jobs:
           $version = $package.version
           if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid version' }
           if ($lock.version -ne $version -or $lock.packages[''].version -ne $version) { throw 'Package and lock versions differ' }
+          if ($package.license -ne 'GPL-3.0-or-later' -or $lock.packages[''].license -ne $package.license) { throw 'Project license metadata must match GPL-3.0-or-later' }
           if ($env:GITHUB_REF.StartsWith('refs/tags/') -and $env:GITHUB_REF_NAME -ne "v$version") { throw 'Tag must match package version' }
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
       - name: Install locked dependencies
@@ -63,7 +64,7 @@ jobs:
             if (-not (Test-Path -LiteralPath $source)) { throw "Missing installer: $name" }
             Copy-Item -LiteralPath $source -Destination (Join-Path release $name)
           }
-          Compress-Archive -LiteralPath client/dist/win-unpacked/LICENSE.electron.txt,client/dist/win-unpacked/LICENSES.chromium.html -DestinationPath "release/QuickShare-ThirdParty-Licenses-$version.zip"
+          Compress-Archive -LiteralPath client/dist/win-unpacked/resources/licenses,client/dist/win-unpacked/LICENSE.electron.txt,client/dist/win-unpacked/LICENSES.chromium.html -DestinationPath "release/QuickShare-ThirdParty-Licenses-$version.zip"
           $sums = Get-ChildItem release -File | Sort-Object Name | ForEach-Object {
             $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"

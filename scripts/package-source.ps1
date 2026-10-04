@@ -38,14 +38,14 @@ for ($i = 0; $i + 2 -lt $attributes.Length; $i += 3) {
 }
 $files = @($files | Where-Object {
     -not $excluded.ContainsKey($_) -and
-    $_ -match '^(README\.md|\.gitignore|\.gitattributes|\.github/|client/|deploy/|docs/|server/|scripts/)' -and
+    $_ -match '^(README\.md|LICENSE|THIRD_PARTY_NOTICES\.md|licenses/|\.gitignore|\.gitattributes|\.github/|client/|deploy/|docs/|server/|scripts/)' -and
     $_ -notmatch '(^|/)(node_modules|dist|vendor|\.review-tmp|build|bin)(/|$)' -and
     $_ -notmatch '(^|/)config\.json$|(^|/)\.env($|\.)|\.(pem|key|p12|pfx|crt|cer|exe|dll|zip|rar|7z|log|bak|tmp)$|^deploy/(livekit\.local\.yaml|docker-compose\.override\.ya?ml|caddy/certs/|nginx/[^/]+\.conf$)|^deploy/\.quickshare-deploy$'
 })
 # A template is public source, not a local .env file.
 if (Test-Path -LiteralPath (Join-Path $root 'deploy/.env.example')) { $files += 'deploy/.env.example' }
 $files = @($files | Sort-Object -Unique)
-foreach ($required in @('client/package.json', 'client/package-lock.json', 'client/assets/icon.png', 'client/native/CMakeLists.txt', 'client/native/process-audio.cpp', 'deploy/install.sh', 'server/token-service/server.mjs')) {
+foreach ($required in @('LICENSE', 'THIRD_PARTY_NOTICES.md', 'licenses/OBS-GPL-2.0.txt', 'client/package.json', 'client/package-lock.json', 'client/assets/icon.png', 'client/native/CMakeLists.txt', 'client/native/process-audio.cpp', 'deploy/install.sh', 'server/token-service/server.mjs')) {
     if ($files -notcontains $required) { throw "Required source missing: $required" }
 }
 $version = (Get-Content -LiteralPath (Join-Path $root 'client/package.json') -Raw -Encoding UTF8 | ConvertFrom-Json).version

@@ -5,7 +5,7 @@
   "description": "快捷屏幕共享客户端（共享/观看双角色，LiveKit SFU）",
   "main": "main.js",
   "author": "internal",
-  "license": "MIT",
+  "license": "GPL-3.0-or-later",
   "scripts": {
     "postinstall": "node scripts/fetch-vendor.mjs && node scripts/gen-icon.mjs",
     "start": "electron .",
@@ -65,6 +65,22 @@
       {
         "from": "native/bin/process-audio.exe",
         "to": "native/process-audio.exe"
+      },
+      {
+        "from": "../LICENSE",
+        "to": "licenses/LICENSE"
+      },
+      {
+        "from": "../THIRD_PARTY_NOTICES.md",
+        "to": "licenses/THIRD_PARTY_NOTICES.md"
+      },
+      {
+        "from": "../licenses",
+        "to": "licenses/upstream"
+      },
+      {
+        "from": "renderer/vendor/licenses",
+        "to": "licenses/vendor"
       }
     ]
   },

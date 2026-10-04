@@ -1,3 +1,10 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// OBS Studio audio capture reference: Copyright OBS Studio contributors.
+// Upstream OBS Studio is GPL-2.0-or-later; this adaptation is distributed
+// under GPL-3.0-or-later. See ../../THIRD_PARTY_NOTICES.md for provenance.
+// QuickShare adaptation: standalone process-tree capture, pipe PCM output,
+// window lifetime checks and stop handling. License notice added 2026-10-04.
+// This program comes WITHOUT ANY WARRANTY; see ../../LICENSE.
 // QuickShare process-tree loopback. PCM is streamed over an anonymous pipe;
 // no DLL injection, virtual sound driver, graphics capture, or recording files.
 #include <windows.h>

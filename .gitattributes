@@ -6,6 +6,9 @@
 *.yml text eol=lf
 *.yaml text eol=lf
 *.md text eol=lf
+*.txt text eol=lf
+*.cpp text eol=lf
+LICENSE text eol=lf
 *.html text eol=lf
 *.example text eol=lf
 .gitignore text eol=lf

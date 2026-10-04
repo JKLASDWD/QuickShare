@@ -38,3 +38,4 @@ jobs:
           node --check client/renderer/process-audio-worklet.js
           node --check client/scripts/build-native.mjs
           node --check client/scripts/verify-package.cjs
+          node --check client/scripts/vendor-licenses.mjs
