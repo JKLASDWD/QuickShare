@@ -1,4 +1,5 @@
-# LiveKit 服务端配置（生产部署前必改 keys；TURN/TLS 另需域名和证书）
+# LiveKit 配置模板：复制为 livekit.local.yaml 后修改，不要在此写入生产秘密。
+# TURN/TLS 另需域名和证书。
 port: 7880
 
 rtc:
@@ -17,5 +18,5 @@ turn:
   # tls_port: 5349
 
 keys:
-  # 生产必改：生成方式 `openssl rand -hex 32`，需与 docker-compose.yml 中 token 服务环境变量一致
+  # 本地副本必改：openssl rand -hex 32，需与 .env 的 LIVEKIT_API_SECRET 一致。
   devkey: secret

@@ -3,13 +3,16 @@
 <head>
 <meta charset="utf-8" />
 <title>共享屏幕</title>
+<link rel="stylesheet" href="room-chat.css">
 <style>
   :root { --bg:#151923; --panel:#1d2330; --line:#2c3446; --txt:#e8ecf4; --dim:#8b94a7; --acc:#3d9eff; --ok:#3ecf8e; --err:#ff6b6b; }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--txt); font:14px/1.5 "Segoe UI","Microsoft YaHei",sans-serif; user-select:none; }
-  header { padding:14px 18px 6px; display:flex; align-items:baseline; gap:10px; }
+  header { padding:14px 18px 6px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   header h1 { font-size:17px; margin:0; }
-  header .hint { color:var(--dim); font-size:12px; }
+  header nav { margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; }
+  header button { padding:8px 12px; font-size:13px; }
+  .hint { color:var(--dim); font-size:12px; margin:2px 18px 8px; min-height:18px; }
   main { padding:0 18px 18px; }
   h2 { font-size:12px; color:var(--dim); margin:14px 0 8px; font-weight:600; letter-spacing:.05em; }
   .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; max-height:38vh; overflow:auto; padding:2px; }
@@ -24,7 +27,7 @@
   .row { display:flex; gap:12px; flex-wrap:wrap; }
   .field { flex:1; min-width:160px; }
   label { display:block; font-size:12px; color:var(--dim); margin-bottom:4px; }
-  input[type=text],input[type=password] { width:100%; background:#12161f; border:1px solid var(--line); color:var(--txt); border-radius:6px; padding:8px 10px; font-size:14px; }
+  input[type=text],input[type=password],input[type=number] { width:100%; background:#12161f; border:1px solid var(--line); color:var(--txt); border-radius:6px; padding:8px 10px; font-size:14px; }
   input:focus { outline:none; border-color:var(--acc); }
   .actions { margin-top:14px; display:flex; align-items:center; gap:12px; }
   button { background:var(--acc); color:#fff; border:0; border-radius:8px; padding:10px 22px; font-size:14px; cursor:pointer; }
@@ -33,15 +36,24 @@
   .err { color:var(--err); font-size:14px; min-height:18px; flex:1; font-weight:600; }
   .grid.empty::after { content:'未发现可用屏幕/窗口'; display:block; color:var(--dim); padding:18px 4px; font-size:13px; }
   /* 共享中视图 */
-  #liveView { display:none; text-align:center; padding:36px 20px; }
+  #liveView { display:none; text-align:center; padding:12px 0; }
   #liveView .dot { width:12px; height:12px; border-radius:50%; background:var(--ok); display:inline-block; margin-right:8px; animation:pulse 1.6s infinite; }
   @keyframes pulse { 50% { opacity:.4; } }
-  #liveView .room { font-size:34px; font-weight:700; margin:14px 0 4px; letter-spacing:.04em; }
-  #liveView .sub { color:var(--dim); margin-bottom:22px; }
+  #liveView .room { font-size:24px; font-weight:700; margin:4px 0; letter-spacing:.04em; }
+  #liveView .sub { color:var(--dim); font-size:12px; margin:6px 0; }
 </style>
 </head>
 <body>
-  <header><h1>共享屏幕</h1><span class="hint" id="hint">正在枚举屏幕与窗口…</span><button class="ghost" id="watchBtn" style="margin-left:auto">查看共享 →</button></header>
+  <header>
+    <h1>共享屏幕</h1>
+    <nav aria-label="快捷操作">
+      <button type="button" class="ghost" id="refreshSourcesBtn" title="重新获取屏幕和窗口列表（F5）">刷新列表</button>
+      <button type="button" class="ghost" id="watchBtn">查看共享</button>
+      <button type="button" class="ghost" id="settingsBtn">设置</button>
+      <button type="button" class="ghost" id="logsBtn">日志</button>
+    </nav>
+  </header>
+  <p class="hint" id="hint" role="status" aria-live="polite">正在获取屏幕与窗口…</p>
   <main>
     <div id="pickView">
       <h2>屏幕</h2><div class="grid" id="screens"></div>
@@ -53,7 +65,7 @@
         </div>
         <div class="actions">
           <button type="button" id="startBtn" disabled>开始共享</button>
-          <button type="button" class="ghost" id="sysPickBtn" title="列表加载不出时，用 Windows 系统弹窗选择共享内容">系统选择器共享…</button>
+          <button type="button" class="ghost" id="sysPickBtn" title="直接共享主屏幕">快速共享主屏幕</button>
           <div class="err" id="err"></div>
         </div>
       </form>
@@ -62,14 +74,27 @@
       <div><span class="dot"></span>正在共享</div>
       <div class="room" id="liveRoom"></div>
       <div class="sub">同事打开客户端，在房间列表点击「<span id="liveRoom2"></span>」即可观看 · 已共享 <span id="elapsed">0:00</span></div>
+      <p class="sub" id="liveMedia"></p>
       <button type="button" class="ghost" id="stopBtn">停止共享</button>
+      <button type="button" class="ghost" id="showChatBtn" aria-pressed="true">关闭弹幕</button>
+      <button type="button" class="ghost" id="editChatBtn">调整弹幕位置</button>
+      <div style="display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:10px;margin-top:10px;font-size:13px">
+        <span>弹幕框大小</span>
+        <label for="chatOverlayWidth">宽</label><input id="chatOverlayWidth" type="number" min="240" max="1000" step="20" value="400" style="width:76px;padding:5px" />
+        <label for="chatOverlayHeight">高</label><input id="chatOverlayHeight" type="number" min="160" max="900" step="20" value="340" style="width:76px;padding:5px" /><span>像素 · 修改即生效</span>
+      </div>
+      <div id="overlayStatus" role="status" style="font-size:12px;color:#ffb980;min-height:16px"></div>
+      <section id="roomChat" style="max-width:650px;margin:8px auto;height:230px"></section>
     </div>
   </main>
 <script src="vendor/livekit-client.js"></script>
+<script src="../room-id.js"></script>
+<script src="room-chat.js"></script>
 <script>
 'use strict';
 (() => {
 const LK = window.LivekitClient;
+const { normalizeRoomId } = window.QuickShareRoomId;
 const bridge = window.bridge || {
   getConfig: async () => ({ server: new URLSearchParams(location.search).get('server') || 'http://localhost:8080', displayName: '浏览器测试', defaultRoomId: '', maxBitrateKbps: 4000, configPath: '(browser)' }),
   listSources: async () => [],
@@ -80,6 +105,7 @@ const bridge = window.bridge || {
 const $ = (id) => document.getElementById(id);
 let cfg = null, selected = null, timer = null, startedAt = 0, sharing = false;
 let active = null, starting = false, startTask = null, stopTask = null;
+let refreshing = false, refreshTask = null;
 const IS_ELECTRON = !!(window.bridge && window.bridge.openViewer); // shim 无 openViewer，可判别 preload 是否加载
 
 function fatal(msg) {
@@ -98,89 +124,134 @@ async function init() {
   try {
     const t0 = Date.now();
     cfg = await bridge.getConfig();
-    bridge.onConfigChanged?.((next) => { cfg = next; });
+    bridge.onConfigChanged?.((next) => { cfg = next; updateStartBtn(); });
     bridge.log?.(`init server=${cfg.server} electron=${IS_ELECTRON} ${Date.now() - t0}ms`);
     if (!IS_ELECTRON) console.warn('运行在浏览器降级模式：preload 未加载');
-    $('roomId').value = cfg.defaultRoomId || genRoomId();
+    $('roomId').value = normalizeRoomId(cfg.defaultRoomId) || genRoomId();
     refreshSources();
     $('startBtn').onclick = startShare;
     $('sysPickBtn').onclick = startShareViaSystemPicker;
+    $('refreshSourcesBtn').onclick = refreshSources;
+    $('settingsBtn').onclick = () => bridge.openSettings?.();
+    $('logsBtn').onclick = () => bridge.openLogs?.();
     $('watchBtn').onclick = () => {
       if (!bridge.openViewer) return fatal('查看共享不可用：桥接未加载（preload 失效），请把此红字截图反馈');
       bridge.openViewer();
     };
     $('stopBtn').onclick = stopShare;
+    $('showChatBtn').onclick = () => saveOverlayOptions({showChatOverlay:cfg?.showChatOverlay === false});
+    $('editChatBtn').onclick = () => bridge.editChatOverlay?.();
+    for (const id of ['chatOverlayWidth','chatOverlayHeight']) $(id).onchange = () => {
+      const input=$(id), value=Number(input.value);
+      if (!input.value || !Number.isFinite(value) || value < Number(input.min) || value > Number(input.max)) { $('overlayStatus').textContent=`请输入 ${input.min}–${input.max} 的${id==='chatOverlayWidth'?'宽度':'高度'}`;return; }
+      saveOverlayOptions({[id]:Math.round(value)});
+    };
     $('roomId').oninput = updateStartBtn;
-    document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !sharing) startShare(); });
-    bridge.onPickerShown(() => { if (!sharing) refreshSources(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'F5') { e.preventDefault(); refreshSources(); }
+      else if ((e.ctrlKey || e.metaKey) && e.key === ',') { e.preventDefault(); bridge.openSettings?.(); }
+      else if (e.key === 'Enter' && e.target.tagName === 'INPUT' && !sharing) startShare();
+    });
+    bridge.onPickerShown(() => refreshSources());
     bridge.onStopShare(() => stopShare());
   } catch (e) {
     fatal(`初始化失败：${e.message || e}（配置读取中断）`);
   }
 }
 
-let refreshSeq = 0;
-async function refreshSources() {
-  const my = ++refreshSeq; // 过期响应丢弃；页面初始化与 picker-shown 双触发只留一次
+function refreshSources() {
+  if (sharing || starting || stopTask) return Promise.resolve();
+  if (refreshTask) return refreshTask;
+  refreshing = true;
+  $('err').textContent = '';
+  updateStartBtn();
+  // 初始化、窗口唤起和手动刷新共用一次请求，避免重复排队。
+  refreshTask = loadSources().finally(() => {
+    refreshing = false;
+    refreshTask = null;
+    updateStartBtn();
+  });
+  return refreshTask;
+}
+async function loadSources() {
   const t0 = Date.now();
-  bridge.log?.(`refresh-sources #${my}`);
-  $('hint').textContent = '正在枚举屏幕…';
-  try {
-    const screens = (await bridge.listSources(['screen'])).filter((s) => s.kind === 'screen');
-    if (my !== refreshSeq) return;
-    render($('screens'), screens);
-    bridge.log?.(`screens ok ${screens.length} 项 ${Date.now() - t0}ms`);
-    $('hint').textContent = '屏幕已就绪，正在枚举窗口…（窗口较多时稍慢，可先双击屏幕缩略图共享）';
-  } catch (err) {
-    if (my !== refreshSeq) return;
-    $('err').textContent = `枚举屏幕失败：${err.message || err}`;
-    $('hint').textContent = '可点「系统选择器共享…」直接共享';
-    return;
+  const previousId = selected?.id;
+  const errors = [];
+  let count = 0;
+  for (const [kind, box, label] of [['screen', 'screens', '屏幕'], ['window', 'windows', '窗口']]) {
+    if (!sharing && !starting) $('hint').textContent = `正在刷新${label}…`;
+    try {
+      const sources = (await bridge.listSources([kind])).filter((s) => s.kind === kind && (kind !== 'window' || !s.name.includes('ScreenShare')));
+      render($(box), sources, kind);
+      count += sources.length;
+      bridge.log?.(`${kind} ok ${sources.length} 项 ${Date.now() - t0}ms`);
+    } catch (err) {
+      render($(box), [], kind);
+      errors.push(`${label}刷新失败：${err.message || err}`);
+    }
   }
-  try {
-    const wins = (await bridge.listSources(['window'])).filter((s) => s.kind === 'window' && !s.name.includes('ScreenShare'));
-    if (my !== refreshSeq) return;
-    render($('windows'), wins);
-    bridge.log?.(`windows ok ${wins.length} 项 ${Date.now() - t0}ms`);
-    $('hint').textContent = '单击选择，双击缩略图直接开始共享';
-  } catch (err) {
-    if (my !== refreshSeq) return;
-    $('hint').textContent = '窗口列表加载失败（不影响屏幕共享）';
-  }
+  if (sharing || starting || stopTask) return;
+  $('err').textContent = errors.join('；');
+  $('hint').textContent = errors.length ? '可重试刷新，或使用「快速共享主屏幕」'
+    : !count ? '未发现可用屏幕或窗口，请打开需要共享的内容后刷新'
+    : previousId && !selected ? '原选择已不可用，请重新选择屏幕或窗口'
+    : selected ? `已选择「${selected.name}」，双击缩略图或点「开始共享」`
+    : '列表已更新，单击选择，双击缩略图开始共享';
 }
 function genRoomId() { return String(100 + Math.floor(Math.random() * 900)); }
-function render(box, list) {
+function render(box, list, kind) {
+  if (selected && (selected.kind || selected.id.split(':')[0]) === kind) {
+    selected = list.find((s) => s.id === selected.id) || null;
+  }
   box.innerHTML = '';
+  box.classList.toggle('empty', list.length === 0);
   for (const s of list) {
     const card = document.createElement('div');
-    card.className = 'card';
+    card.className = s.id === selected?.id ? 'card selected' : 'card';
     card.innerHTML = `<img class="thumb" src="${s.thumbnail}" alt="" />
       <div class="cap">${s.icon ? `<img src="${s.icon}" alt="" />` : ''}<span title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</span></div>`;
     card.onclick = () => {
       selected = s;
       document.querySelectorAll('.card').forEach((c) => c.classList.remove('selected'));
       card.classList.add('selected');
-      if (!$('roomId').value.trim()) $('roomId').value = genRoomId();
+      if (!normalizeRoomId($('roomId').value)) $('roomId').value = genRoomId();
       $('hint').textContent = `已选择「${s.name}」，双击缩略图或点「开始共享」`;
       updateStartBtn();
     };
-    card.ondblclick = () => { selected = s; if (!$('roomId').value.trim()) $('roomId').value = genRoomId(); startShare(); };
+    card.ondblclick = () => { selected = s; if (!normalizeRoomId($('roomId').value)) $('roomId').value = genRoomId(); startShare(); };
     box.appendChild(card);
   }
 }
+async function saveOverlayOptions(patch) {
+  try {
+    if (!bridge.saveConfig) throw new Error('当前环境无法保存弹幕配置');
+    cfg = await bridge.saveConfig(patch);$('overlayStatus').textContent='';updateStartBtn();
+  } catch (error) { $('overlayStatus').textContent=error.message || '弹幕配置保存失败'; }
+}
 function updateStartBtn() {
-  $('startBtn').disabled = !(selected && !sharing && !starting && !stopTask);
-  $('sysPickBtn').disabled = sharing || starting || !!stopTask;
+  $('showChatBtn').disabled = false;
+  $('showChatBtn').textContent = cfg?.showChatOverlay === false ? '开启弹幕' : '关闭弹幕';
+  $('showChatBtn').setAttribute('aria-pressed',String(cfg?.showChatOverlay !== false));
+  $('editChatBtn').disabled = cfg?.showChatOverlay === false;
+  $('showChatBtn').title = '立即切换弹幕悬浮窗，并记住此选择';
+  for (const [id,fallback] of [['chatOverlayWidth',400],['chatOverlayHeight',340]]) if (document.activeElement !== $(id)) $(id).value = cfg?.[id] || fallback;
+  const applicationAudio = cfg?.audioMode === 'application';
+  $('startBtn').disabled = !(selected && (!applicationAudio || selected.id.startsWith('window:')) && !sharing && !starting && !stopTask && !refreshing);
+  $('sysPickBtn').disabled = sharing || starting || !!stopTask || applicationAudio;
+  $('sysPickBtn').title = applicationAudio ? '所选应用声音需要先选择单个窗口' : '直接共享主屏幕';
+  $('refreshSourcesBtn').disabled = refreshing || sharing || starting || !!stopTask;
+  $('refreshSourcesBtn').textContent = refreshing ? '刷新中…' : '刷新列表';
+  $('refreshSourcesBtn').title = sharing || starting || stopTask ? '停止共享后可刷新列表' : '重新获取屏幕和窗口列表（F5）';
 }
 
 function startShare() { if (selected) return beginShare(false); }
 function startShareViaSystemPicker() { return beginShare(true); }
 function beginShare(systemPicker) {
-  if (sharing || starting || stopTask) return;
+  if (sharing || starting || stopTask || (!systemPicker && refreshing)) return;
   starting = true;
-  const s = active = { cancelled: false, raw: null, room: null, track: null, created: null };
+  const s = active = { cancelled: false, raw: null, room: null, track: null, created: null, streams: [], audioTracks: [] };
   const source = selected;
-  const roomId = $('roomId').value.trim() || genRoomId();
+  const roomId = normalizeRoomId($('roomId').value) || genRoomId();
   const password = $('password').value;
   $('roomId').value = roomId;
   $('err').textContent = '';
@@ -200,21 +271,39 @@ async function runShare(s, source, systemPicker, roomId, password) {
   try {
     // 每次操作读最新配置，并固定本次会话的服务地址/令牌用于回滚。
     s.cfg = await bridge.getConfig();
+    bridge.log?.('publisher-start',{sourceType:source?.id?.split(':')[0] || 'screen',audioMode:s.cfg.audioMode,videoQuality:s.cfg.videoQuality,frameRate:s.cfg.frameRate});
     checkCancelled(s);
-    const capture = (systemPicker
-      ? navigator.mediaDevices.getDisplayMedia({ audio: false, video: { frameRate: { ideal: 30, max: 30 } } })
+    if (s.cfg.audioMode === 'application' && (systemPicker || !source?.id.startsWith('window:'))) throw new Error('所选应用声音需要共享单个窗口，请选择下方窗口后开始共享');
+    const fps = [15,30,60].includes(Number(s.cfg.frameRate)) ? Number(s.cfg.frameRate) : 30;
+    const heights = { '720p':720, '1080p':1080, '1440p':1440, '2160p':2160 };
+    const height = heights[s.cfg.videoQuality || '1080p'];
+    const systemAudio = s.cfg.audioMode === 'system';
+    if (systemPicker || systemAudio) await bridge.prepareCapture?.(systemPicker ? null : source.id);
+    checkCancelled(s);
+    const capture = (systemPicker || systemAudio
+      ? navigator.mediaDevices.getDisplayMedia({ audio: systemAudio, video: { frameRate: { ideal: fps, max: fps } } })
       : navigator.mediaDevices.getUserMedia({ audio: false,
-          video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: source.id, maxFrameRate: 30 } } }))
-      .then((ms) => {
-        if (s.cancelled) { ms.getTracks().forEach((t) => t.stop()); throw new Error('共享已取消'); }
-        return ms;
-      });
+          video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: source.id, maxFrameRate: fps,
+            ...(height ? { maxWidth: Math.round(height*16/9), maxHeight: height } : {}) } } }))
+      .then((ms) => ownStream(s, ms));
     const ms = await Promise.race([capture, new Promise((_, reject) => {
       watchdog = setTimeout(() => { s.cancelled = true; reject(new Error('采集选择超时，请重试')); }, systemPicker ? 60000 : 15000);
     })]);
     clearTimeout(watchdog);
     s.raw = ms.getVideoTracks()[0];
     if (!s.raw) throw new Error('没有可用的视频轨道');
+    await s.raw.applyConstraints?.({ frameRate: { ideal: fps, max: fps }, ...(height ? { width: { max: Math.round(height*16/9) }, height: { max: height } } : {}) });
+    checkCancelled(s);
+    if (s.cfg.audioMode === 'microphone') {
+      const microphone = navigator.mediaDevices.getUserMedia({ video: false, audio: { echoCancellation: true, noiseSuppression: true } }).then(stream => ownStream(s, stream));
+      await Promise.race([microphone, new Promise((_, reject) => {
+        watchdog = setTimeout(() => { s.cancelled = true; reject(new Error('麦克风采集超时，请检查权限')); }, 15000);
+      })]);
+      clearTimeout(watchdog);
+    }
+    if (s.cfg.audioMode === 'application') await startApplicationAudio(s, source.id);
+    const audio = s.streams.flatMap(stream => stream.getAudioTracks?.() || []);
+    if (s.cfg.audioMode && s.cfg.audioMode !== 'off' && !audio.length) throw new Error('未获得声音轨道，请检查音频设备或改为关闭声音');
     s.raw.addEventListener('ended', () => { if (active === s && !s.cancelled) finish({}); });
     checkCancelled(s);
     const presenter = s.cfg.displayName;
@@ -230,10 +319,14 @@ async function runShare(s, source, systemPicker, roomId, password) {
     s.created = { roomId, ownerToken: data.ownerToken };
     checkCancelled(s);
     s.room = new LK.Room({ adaptiveStream: true, dynacast: true });
+    s.chat = window.QuickShareChat.mount($('roomChat'), s.room, LK.RoomEvent, roomId, state => {
+      if (active === s && !s.cancelled) bridge.updateHostChat?.(state);
+    });
     s.room.on(LK.RoomEvent.Disconnected, () => {
       if (active === s && !s.cancelled) finish({ error: '连接已断开' });
     });
     await s.room.connect(data.url, data.token);
+    s.chat?.refresh();
     checkCancelled(s);
     s.track = new LK.LocalVideoTrack(s.raw);
     s.track.mediaStreamTrack.contentHint = 'detail';
@@ -242,22 +335,34 @@ async function runShare(s, source, systemPicker, roomId, password) {
       name: source?.name || s.raw.label || '屏幕/窗口',
       simulcast: true,
       degradationPreference: 'maintain-resolution', // 偶发模糊主因：带宽/CPU 紧张时编码器默认降分辨率；屏幕内容改为保分辨率、牺牲帧率
-      videoEncoding: { maxBitrate: (s.cfg.maxBitrateKbps || 8000) * 1000, priority: 'high' },
+      screenShareEncoding: { maxBitrate: Math.round(({720:4000000,1080:8000000,1440:14000000,2160:24000000}[height] || 30000000) * fps / 30), maxFramerate: fps, priority: 'high' },
     });
     checkCancelled(s);
+    for (const rawAudio of audio) {
+      checkCancelled(s);
+      const track = new LK.LocalAudioTrack(rawAudio);
+      s.audioTracks.push(track);
+      await s.room.localParticipant.publishTrack(track, { source: s.cfg.audioMode === 'microphone' ? LK.Track.Source.Microphone : LK.Track.Source.ScreenShareAudio, dtx: false });
+    }
+    checkCancelled(s);
+    const actual = s.raw.getSettings?.() || {};
+    $('liveMedia').textContent = `采集：${actual.width || '?'} × ${actual.height || '?'} · ${Math.round(actual.frameRate || fps)} FPS · ${audioLabel(s.cfg.audioMode)}（网络或设备性能可能限制观看效果）`;
     sharing = true;
+    $('hint').textContent = '共享进行中，可查看其他共享或打开设置';
     startedAt = Date.now();
     $('pickView').style.display = 'none';
     $('liveView').style.display = 'block';
     $('liveRoom').textContent = roomId;
     $('liveRoom2').textContent = roomId;
     timer = setInterval(() => {
-      const s = Math.floor((Date.now() - startedAt) / 1000);
-      $('elapsed').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+      const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+      $('elapsed').textContent = `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`;
+      if (elapsed % 3 === 0) updateSentMedia(s);
     }, 1000);
     bridge.shareStarted({ roomId, presenter });
   } catch (err) {
     const msg = err.message || String(err);
+    bridge.log?.('publisher-start-failed',{error:msg});
     $('err').textContent = `共享失败：${msg}`;
     $('hint').textContent = '单击选择，双击缩略图直接开始共享';
     bridge.notify?.('共享失败', msg);
@@ -273,7 +378,7 @@ async function stopShare() { await finish({}); }
 function finish(info) {
   if (stopTask) return stopTask;
   const s = active;
-  if (s) { s.cancelled = true; try { s.raw?.stop(); } catch {} }
+  if (s) { s.cancelled = true; stopCapture(s); }
   sharing = false;
   stopTask = (async () => {
     if (startTask) await startTask;
@@ -281,6 +386,8 @@ function finish(info) {
     if (active === s) active = null;
     $('pickView').style.display = '';
     $('liveView').style.display = 'none';
+    $('hint').textContent = '已停止共享，可刷新列表或重新选择屏幕与窗口';
+    if (info?.error) $('err').textContent = info.error;
     bridge.shareStopped(info || {});
   })().finally(() => { stopTask = null; updateStartBtn(); });
   updateStartBtn();
@@ -289,10 +396,76 @@ function finish(info) {
 function apiHeaders(c) {
   return { 'content-type': 'application/json', ...(c.authToken ? { authorization: `Bearer ${c.authToken}` } : {}) };
 }
+function ownStream(s, stream) {
+  if (s.cancelled) {
+    for (const track of stream.getTracks()) { try { track.stop(); } catch {} }
+    throw new Error('共享已取消');
+  }
+  s.streams.push(stream);
+  return stream;
+}
+function audioLabel(mode) { return ({ application: '所选应用声音', system: '系统声音（所有应用）', microphone: '麦克风' })[mode] || '声音关闭'; }
+async function startApplicationAudio(s, sourceId) {
+  if (!bridge.startAppAudio) throw new Error('当前环境不支持所选应用声音');
+  const context = new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
+  const capture = s.appAudio = { context, node: null, id: null };
+  await context.audioWorklet.addModule('process-audio-worklet.js');
+  checkCancelled(s);
+  if (context.sampleRate !== 48000) throw new Error('当前音频设备不支持应用声音采样率');
+  capture.node = new AudioWorkletNode(context, 'quickshare-process-audio', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2] });
+  const destination = context.createMediaStreamDestination();
+  capture.node.connect(destination); // 仅连接推流轨道，不播放到本机扬声器。
+  ownStream(s, destination.stream);
+  capture.offData = bridge.onAppAudioData(data => {
+    if (s.cancelled || !capture.node || data.id !== capture.id) return;
+    const bytes = new Uint8Array(data.pcm);
+    capture.node.port.postMessage(bytes.buffer, [bytes.buffer]);
+  });
+  capture.offError = bridge.onAppAudioError(data => {
+    if (!s.cancelled && data.id === capture.id && active === s) finish({ error: data.message });
+  });
+  await context.resume();
+  checkCancelled(s);
+  const result = await bridge.startAppAudio(sourceId);
+  capture.id = result.id;
+  if (s.cancelled) { await bridge.stopAppAudio(result.id); checkCancelled(s); }
+}
+function stopApplicationAudio(s) {
+  const capture = s.appAudio;
+  if (!capture) return;
+  s.appAudio = null;
+  capture.offData?.(); capture.offError?.();
+  capture.node?.disconnect(); capture.node?.port.close(); capture.node = null;
+  s.appAudioStop = Promise.allSettled([bridge.stopAppAudio?.(capture.id), capture.context.close()]);
+}
+async function updateSentMedia(s) {
+  try {
+    const report = await s.track?.getRTCStatsReport?.();
+    if (active !== s || s.cancelled || !report) return;
+    let sent;
+    report.forEach(stat => {
+      if (stat.type === 'outbound-rtp' && (stat.kind === 'video' || stat.mediaType === 'video') && stat.frameWidth && (!sent || stat.frameWidth > sent.frameWidth)) sent = stat;
+    });
+    if (sent) $('liveMedia').textContent = `实际推流：${sent.frameWidth} × ${sent.frameHeight} · ${Math.round(sent.framesPerSecond || 0)} FPS · ${audioLabel(s.cfg.audioMode)}`;
+  } catch {}
+}
+function stopCapture(s) {
+  s.chat?.dispose();s.chat = null;
+  stopApplicationAudio(s);
+  // 每条轨道独立释放，任何一条失败都不能阻止 Windows 采集资源释放。
+  for (const stream of s.streams || []) for (const track of stream.getTracks()) { try { track.stop(); } catch {} }
+  s.streams = [];
+  for (const track of [s.track, ...(s.audioTracks || [])]) { try { track?.stop(); } catch {} }
+  s.audioTracks = [];
+  try { s.raw?.stop(); } catch {}
+  bridge.log?.(`capture-stopped video=${s.raw?.readyState || 'unknown'}`);
+}
+window.addEventListener('pagehide', () => { if (active) { active.cancelled = true; stopCapture(active); } });
 async function cleanup(s) {
   s.cancelled = true;
   if (timer) { clearInterval(timer); timer = null; }
-  try { s.track?.stop(); s.raw?.stop(); } catch {}
+  stopCapture(s);
+  await s.appAudioStop;
   s.track = null; s.raw = null;
   const oldRoom = s.room;
   s.room = null;

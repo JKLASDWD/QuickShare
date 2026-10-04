@@ -1,16 +1,5 @@
-# IP 直连部署（无域名 / 无 TLS）：适合内网或临时公网 IP 使用
-# 用法：
-#   1) 改 livekit.yaml 的 keys（openssl rand -hex 32），形如 devkey: <hex32>
-#   2) 生成访问令牌：openssl rand -hex 16 → AUTH_TOKEN（必填，缺失则服务拒绝启动）
-#   3) 启动：
-#      export LIVEKIT_API_SECRET=<上面 hex32> AUTH_TOKEN=<hex16> SERVER_IP=1.2.3.4
-#      docker-compose -f docker-compose.ip.yml up -d --build
-#   4) 防火墙放行：8080/tcp（Token API）7880/tcp（信令）7881/tcp 3478/udp（TURN）50000-60000/udp（媒体）
-#   5) 客户端「设置」：服务器地址 http://<SERVER_IP>:8080；访问令牌填 AUTH_TOKEN（全员同一把对等密钥）
-#
-# 安全模型：AUTH_TOKEN 为客户端/服务端共享的对等密钥——列表/建房/进房/删房全部需 Bearer；
-# 无令牌者拿不到 LiveKit token，接触不到媒体面。媒体流恒为 SRTP 加密；明文仅为信令/API 载荷。
-# 公网长期正式使用建议走域名 + TLS 的 docker-compose.yml（Caddy 自动 HTTPS）。
+# IP 明文部署：仅用于可信内网/VPN；配置步骤见 docs/服务端部署指南.md。
+# docker compose -p quickshare -f docker-compose.ip.yml up -d --build
 services:
   livekit:
     image: livekit/livekit-server:latest
@@ -18,7 +7,7 @@ services:
     restart: unless-stopped
     network_mode: host
     volumes:
-      - ./livekit.yaml:/etc/livekit.yaml:ro
+      - ${LIVEKIT_CONFIG:-./livekit.yaml}:/etc/livekit.yaml:ro
 
   token:
     build: ../server/token-service
@@ -27,8 +16,8 @@ services:
     environment:
       LISTEN: 0.0.0.0:8080
       LIVEKIT_HTTP_URL: http://127.0.0.1:7880
-      LIVEKIT_WS_URL: ${LIVEKIT_WS_URL:-ws://${SERVER_IP}:7880} # 可覆盖为外部映射后的完整信令地址
+      LIVEKIT_WS_URL: ${LIVEKIT_WS_URL:-ws://${SERVER_IP:?Set SERVER_IP in .env}:7880}
       LIVEKIT_API_KEY: devkey
-      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
-      AUTH_TOKEN: ${AUTH_TOKEN} # 必填：REQUIRE_AUTH=1 时缺失拒绝启动
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?Set LIVEKIT_API_SECRET in .env}
+      AUTH_TOKEN: ${AUTH_TOKEN:?Set AUTH_TOKEN in .env}
       REQUIRE_AUTH: "1" # IP 直连强制鉴权：API 全接口（除 /api/health）需 Bearer

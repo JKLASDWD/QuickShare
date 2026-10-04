@@ -1,5 +1,5 @@
-# 改成你的域名（DNS A 记录指向 VPS 公网 IP），Caddy 自动签发 TLS
-share.example.com {
+# 域名通过 deploy/.env 的 SHARE_DOMAIN 传入，Caddy 自动签发 TLS
+{$SHARE_DOMAIN} {
 	# 客户端 API（建房/房间列表/进房）
 	handle /api/* {
 		reverse_proxy token:8080

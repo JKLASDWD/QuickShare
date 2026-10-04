@@ -7,7 +7,7 @@ services:
     command: --config /etc/livekit/livekit.yaml
     network_mode: host
     volumes:
-      - ./livekit.yaml:/etc/livekit/livekit.yaml:ro
+      - ${LIVEKIT_CONFIG:-./livekit.yaml}:/etc/livekit/livekit.yaml:ro
 
   token:
     build: ../server/token-service

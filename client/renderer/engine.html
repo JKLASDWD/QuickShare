@@ -58,11 +58,24 @@ async function publishSmoke() {
   const room = new LK.Room({ adaptiveStream: false, dynacast: false });
   await room.connect(create.data.url, create.data.token);
   const track = new LK.LocalVideoTrack(stream.getVideoTracks()[0]);
-  const pub = await room.localParticipant.publishTrack(track, { source: LK.Track.Source.ScreenShare, name: 'smoke-pattern', videoEncoding: { maxBitrate: 4e6, priority: 'high' } });
+  const pub = await room.localParticipant.publishTrack(track, { source: LK.Track.Source.ScreenShare, name: 'smoke-pattern', screenShareEncoding: { maxBitrate: 4e6, maxFramerate: 30, priority: 'high' } });
+  let audioContext, oscillator, audioTrack;
+  if (q.get('audio') === '1') {
+    audioContext = new AudioContext();
+    await audioContext.resume();
+    const destination = audioContext.createMediaStreamDestination();
+    oscillator = audioContext.createOscillator();
+    oscillator.frequency.value = 440;
+    oscillator.connect(destination); oscillator.start();
+    audioTrack = new LK.LocalAudioTrack(destination.stream.getAudioTracks()[0]);
+    await room.localParticipant.publishTrack(audioTrack, { source: LK.Track.Source.ScreenShareAudio, dtx: false });
+    log({ event: 'audio-published' });
+  }
   log({ event: 'published', room: ROOM, trackSid: pub.trackSid, msSinceStart: Date.now() - t0 });
   // 4. 保持推流到时长后退出
   setTimeout(async () => {
     clearInterval(draw);
+    track.stop(); audioTrack?.stop(); oscillator?.stop(); await audioContext?.close();
     await room.disconnect();
     const stopped = await api(`/api/rooms/${encodeURIComponent(ROOM)}`, {
       method: 'DELETE', headers: { 'content-type': 'application/json' },
@@ -88,8 +101,10 @@ async function watchSmoke() {
   // 3. 订阅首帧校验
   const video = document.getElementById('video');
   let firstFrameMs = null;
+  let receivedAudio = null;
   const room = new LK.Room({ adaptiveStream: false });
   room.on(LK.RoomEvent.TrackSubscribed, (track) => {
+    if (track.kind === LK.Track.Kind.Audio) { receivedAudio = track; return; }
     if (track.kind !== LK.Track.Kind.Video) return;
     track.attach(video);
   });
@@ -101,12 +116,16 @@ async function watchSmoke() {
       log({ event: 'first-frame', w: video.videoWidth, h: video.videoHeight, msSinceStart: firstFrameMs });
       // 收帧 3 秒后结束
       const q0 = video.getVideoPlaybackQuality().totalVideoFrames;
-      setTimeout(() => {
+      setTimeout(async () => {
         const q1 = video.getVideoPlaybackQuality().totalVideoFrames;
         if (q1 <= q0) { awaitDisconnect(); return die('video-stalled', 'no new frames in 3s'); }
         const resolution = `${video.videoWidth}x${video.videoHeight}`;
+        let audioBytes = 0;
+        const audioStats = await receivedAudio?.getRTCStatsReport();
+        audioStats?.forEach(stat => { if (stat.type === 'inbound-rtp' && (stat.kind === 'audio' || stat.mediaType === 'audio')) audioBytes += stat.bytesReceived || 0; });
+        if (q.get('audio') === '1' && !audioBytes) { awaitDisconnect(); return die('audio-stalled', 'no audio bytes'); }
         room.disconnect().finally(() =>
-          done({ stage: 'watch', ok: true, room: ROOM, firstFrameMs, framesIn3s: q1 - q0, resolution })
+          done({ stage: 'watch', ok: true, room: ROOM, firstFrameMs, framesIn3s: q1 - q0, resolution, audioBytes })
         );
       }, 3000);
     }

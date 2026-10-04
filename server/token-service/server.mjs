@@ -262,7 +262,7 @@ async function handleJoin(req, res, roomIdRaw) {
   const token = grantToken({
     identity: `sub-${randomId()}`,
     name,
-    grants: { roomJoin: true, room: roomId, canPublish: false, canSubscribe: true },
+    grants: { roomJoin: true, room: roomId, canPublish: false, canSubscribe: true, canPublishData: true },
     ttlMinutes: cfg.rooms.tokenTtlMinutes,
   });
   send(res, 200, { roomId, url: cfg.livekit.wsUrl, token });

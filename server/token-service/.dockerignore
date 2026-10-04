@@ -1,0 +1,11 @@
+config.json
+.env
+.env.*
+!.env.example
+node_modules/
+*.log
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx

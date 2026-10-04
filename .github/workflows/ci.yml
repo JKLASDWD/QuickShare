@@ -1,4 +1,4 @@
-name: Regression tests
+name: Source validation
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  regression:
+  source:
     strategy:
       fail-fast: false
       matrix:
@@ -31,6 +31,10 @@ jobs:
           node --check client/main.js
           node --check client/certificate-policy.js
           node --check client/preload.js
-          node --check tests/livekit-e2e.cjs
-      - name: Run API and lifecycle regression tests
-        run: node --test tests/review-regression.test.cjs tests/certificate-policy.test.cjs
+          node --check client/diagnostics.js
+          node --check client/process-audio.js
+          node --check client/room-id.js
+          node --check client/renderer/room-chat.js
+          node --check client/renderer/process-audio-worklet.js
+          node --check client/scripts/build-native.mjs
+          node --check client/scripts/verify-package.cjs

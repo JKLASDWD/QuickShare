@@ -1,40 +1,46 @@
-# Dependencies and generated distribution files
+# Dependencies and generated files
 node_modules/
 dist/
 coverage/
+/release/
 /client/renderer/vendor/
 /client/assets/icon.png
+/client/native/build/
+/client/native/bin/
 
-# Local LiveKit binaries; retain documentation and license
-/tools/*
-!/tools/LICENSE
-!/tools/README.md
-
-# Local configuration, credentials and certificates
+# Local configuration and credentials
 .env
 .env.*
 !.env.example
-!*.env.example
 /client/config.json
 /server/token-service/config.json
+.npmrc
 *.pem
 *.key
-*.p12
-*.pfx
 *.crt
 *.cer
-.npmrc
+*.p12
+*.pfx
 
-# Logs, caches and backups
+# Local deployment state
+/deploy/livekit.local.yaml
+/deploy/.quickshare-deploy
+/deploy/caddy/certs/
+/deploy/docker-compose.override.yml
+/deploy/docker-compose.override.yaml
+/deploy/docker-install-*.sh
+/deploy/nginx/*.conf
+
+# Logs, temporary files and editor state
 *.log
-*.rar
-*.zip
-*.7z
-*.tar
-*.tar.gz
 *.bak
 *.tmp
+/.review-tmp/
 __pycache__/
+.idea/
+.vscode/
+*.tsbuildinfo
+*.swp
+*.swo
 .DS_Store
 Thumbs.db
-/.review-tmp/

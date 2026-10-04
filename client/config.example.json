@@ -5,5 +5,11 @@
   "hotkey": "Control+Alt+S",
   "displayName": "",
   "defaultRoomId": "",
-  "maxBitrateKbps": 4000
+  "videoQuality": "1080p",
+  "frameRate": 30,
+  "audioMode": "off",
+  "notificationsEnabled": false,
+  "showChatOverlay": true,
+  "chatOverlayWidth": 400,
+  "chatOverlayHeight": 340
 }

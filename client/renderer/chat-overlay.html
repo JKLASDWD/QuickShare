@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>共享弹幕</title><link rel="stylesheet" href="room-chat.css">
+<style>
+html,body{margin:0;background:transparent;overflow:hidden;color:#fff;font:14px "Segoe UI","Microsoft YaHei",sans-serif}
+body{padding:10px;box-sizing:border-box;height:100vh}
+header{display:none;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;padding:8px;background:rgba(18,24,36,.9);border-radius:8px;-webkit-app-region:drag}
+body.editing{outline:1px dashed #69baff;outline-offset:-2px;background:rgba(18,24,36,.12)}
+body.editing header{display:flex}
+header span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+button{background:#3567a8;color:white;border:0;border-radius:5px;padding:6px 10px;cursor:pointer;-webkit-app-region:no-drag}
+#chat{height:calc(100vh - 20px);min-height:0;max-height:none;box-sizing:border-box;background:transparent;border:0;padding:0;gap:0}
+body.editing #chat{height:calc(100vh - 70px)}
+#chat details{display:none}
+.chat-messages{min-height:0;scrollbar-width:none}
+.chat-messages::-webkit-scrollbar{display:none}
+.chat-message{margin:5px 0;padding:7px 10px;background:rgba(10,15,24,.35);border:0;border-radius:7px;color:white;font-size:18px;font-weight:600;line-height:1.4;text-shadow:0 1px 3px #000,1px 0 2px #000,-1px 0 2px #000}
+.chat-message small{display:block;font-size:12px;color:#9fd2ff;margin-bottom:2px}
+.chat-message>div{max-height:126px;overflow:hidden}
+</style></head>
+<body><header><span id="room">拖动此处调整位置</span><button id="lock">锁定</button></header><section id="chat"></section>
+<script src="room-chat.js"></script><script>
+const container = document.getElementById('chat');
+QuickShareChat.layout(container, true);
+let receivedLiveState = false;
+function update(state) {
+  if (!state) return;
+  document.getElementById('room').textContent = `房间 ${state.roomId} · 拖动调整`;
+  QuickShareChat.render(container,{...state,messages:state.messages.slice(-8)});
+  const list=container.querySelector('.chat-messages');list.hidden=!state.messages.length;list.scrollTop=list.scrollHeight;
+}
+window.bridge.onHostChat(state => {receivedLiveState=true;update(state);});
+window.bridge.getHostChat().then(state => {if(!receivedLiveState) update(state);});
+function mode(state) {document.body.classList.toggle('editing',state?.editing===true);}
+let receivedLiveMode = false;
+window.bridge.onChatOverlayMode(state => {receivedLiveMode=true;mode(state);});
+window.bridge.getChatOverlayMode().then(state => {if(!receivedLiveMode) mode(state);});
+document.getElementById('lock').onclick = () => window.bridge.lockChatOverlay();
+document.addEventListener('keydown',event => {if(event.key==='Escape') window.bridge.lockChatOverlay();});
+</script></body></html>

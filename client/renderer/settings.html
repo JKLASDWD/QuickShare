@@ -9,7 +9,7 @@
   body { margin:0; background:var(--bg); color:var(--txt); font:14px/1.6 "Segoe UI","Microsoft YaHei",sans-serif; padding:18px; }
   .field { margin-bottom:14px; }
   label { display:block; font-size:12px; color:var(--dim); margin-bottom:4px; }
-  input { width:100%; background:#12161f; border:1px solid var(--line); color:var(--txt); border-radius:6px; padding:8px 10px; font-size:14px; }
+  input, select { width:100%; background:#12161f; border:1px solid var(--line); color:var(--txt); border-radius:6px; padding:8px 10px; font-size:14px; }
   input:focus { outline:none; border-color:var(--acc); }
   input[readonly] { color:var(--acc); cursor:pointer; }
   .hotkey-row { display:flex; gap:8px; }
@@ -19,7 +19,7 @@
   .path { font-size:11px; color:var(--dim); word-break:break-all; margin-top:16px; }
   .msg { color:#3ecf8e; font-size:13px; height:20px; }
   .checkbox-row { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--txt); }
-  .checkbox-row input { width:auto; margin:0; }
+  .checkbox-row input, select { width:auto; margin:0; }
   .certificate-warning { color:#f0b429; font-size:11px; margin-top:4px; }
 </style>
 </head>
@@ -30,13 +30,19 @@
   <div class="field"><label>全局热键（唤起共享选择器）</label>
     <div class="hotkey-row"><input id="hotkey" readonly title="点击右侧按钮后按下组合键" /><button class="ghost" id="recordBtn">录制</button></div>
   </div>
-  <div class="field"><label>最大码率 Kbps（1080p 建议 8000；4K/内网可 20000+，家宽上行低可降至 4000）</label><input id="maxBitrateKbps" type="number" min="500" step="500" inputmode="numeric" /></div>
+  <div class="field"><label>画面清晰度（最高分辨率，保持原比例）</label><select id="videoQuality"><option value="720p">720p · 节省带宽</option><option value="1080p">1080p · 推荐</option><option value="1440p">1440p · 更清晰</option><option value="2160p">4K · 高带宽</option><option value="original">原始尺寸</option></select></div>
+  <div class="field"><label>帧率</label><select id="frameRate"><option value="15">15 FPS · 文档</option><option value="30">30 FPS · 推荐</option><option value="60">60 FPS · 动态画面</option></select></div>
+  <div class="field"><label>共享声音</label><select id="audioMode"><option value="off">关闭</option><option value="application" id="applicationAudioOption">所选应用声音（共享单个窗口）</option><option value="system">系统声音（所有应用）</option><option value="microphone">麦克风</option></select><small>应用声音包含该应用及子进程，浏览器可能包含其他标签页。共享系统声音时勿在本机播放同一房间的声音。</small><div id="audioSupport" class="certificate-warning"></div></div>
+  <div class="field"><label class="checkbox-row"><input type="checkbox" id="notificationsEnabled" />开启 Windows 通知（默认关闭）</label></div>
+  <div class="field"><label class="checkbox-row"><input type="checkbox" id="showChatOverlay" />共享时显示透明弹幕</label><small>默认鼠标穿透。共享页面点“调整弹幕位置”后拖动，完成后点“锁定”；Ctrl+Shift+F10 可切换调整模式。游戏请选择无边框全屏，独占全屏无法保证显示。</small></div>
+  <div class="field"><button type="button" id="logsBtn" class="ghost">查看诊断日志</button></div>
   <div class="field"><label>访问令牌（服务端开启鉴权时填写，可留空）</label><input id="authToken" maxlength="128" autocomplete="off" /></div>
   <div class="field"><label class="checkbox-row"><input type="checkbox" id="trustInvalidServerCertificate" />信任不匹配证书（仅当前服务器主机）</label><div class="certificate-warning">开启后跳过证书错误，无法验证服务器身份，可能遭受中间人攻击。修改后请退出托盘并重启应用。</div></div>
   <div style="display:flex; align-items:center; gap:12px; margin-top:18px">
     <button id="saveBtn">保存</button><span class="msg" id="msg"></span>
   </div>
   <div class="path" id="configPath"></div>
+<script src="../room-id.js"></script>
 <script>
 'use strict';
 (() => {
@@ -45,20 +51,32 @@ const bridge = window.bridge || {
   saveConfig: async (patch) => ({ ...patch, configPath: '(browser)' }),
 };
 const $ = (id) => document.getElementById(id);
+const { normalizeRoomId } = window.QuickShareRoomId;
 let cfg = null, recording = false;
 init();
 async function init() {
   cfg = await bridge.getConfig();
+  bridge.onConfigChanged?.(next => {cfg=next;$('showChatOverlay').checked=cfg.showChatOverlay !== false;});
   $('server').value = cfg.server;
   $('server').addEventListener('input', () => { $('trustInvalidServerCertificate').checked = false; });
   $('displayName').value = cfg.displayName;
-  $('defaultRoomId').value = cfg.defaultRoomId;
+  $('defaultRoomId').value = normalizeRoomId(cfg.defaultRoomId);
   $('hotkey').value = cfg.hotkey;
   $('authToken').value = cfg.authToken || '';
   $('trustInvalidServerCertificate').checked = cfg.trustInvalidServerCertificate === true;
-  $('maxBitrateKbps').value = cfg.maxBitrateKbps;
+  $('videoQuality').value = cfg.videoQuality || '1080p';
+  $('frameRate').value = cfg.frameRate || 30;
+  $('audioMode').value = cfg.audioMode || 'off';
+  const support = await bridge.getAppAudioSupport?.();
+  if (support && !support.available) {
+    $('applicationAudioOption').disabled = true;
+    $('audioSupport').textContent = support.reason==='module-missing'?'应用声音模块缺失，请重新安装或完整解压客户端，并在“日志”中查看检查结果。':'应用声音需要 Windows 10 2004 或更新版本，以及完整客户端。';
+  }
+  $('notificationsEnabled').checked = cfg.notificationsEnabled === true;
+  $('showChatOverlay').checked = cfg.showChatOverlay !== false;
   $('configPath').textContent = `配置文件：${cfg.configPath}`;
   $('saveBtn').onclick = save;
+  $('logsBtn').onclick = () => bridge.openLogs?.();
   $('recordBtn').onclick = toggleRecord;
   document.addEventListener('keydown', (e) => { if (recording) { e.preventDefault(); captureKey(e); } }, true);
 }
@@ -83,20 +101,27 @@ function captureKey(e) {
 }
 async function save() {
   try {
-  const bitrate = Math.max(500, parseInt(String($('maxBitrateKbps').value).replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0)).replace(/[^\d]/g, ''), 10) || 8000);
   cfg = await bridge.saveConfig({
     server: $('server').value.trim().replace(/\/+$/, ''),
     displayName: $('displayName').value.trim() || '用户',
-    defaultRoomId: $('defaultRoomId').value.trim(),
+    defaultRoomId: normalizeRoomId($('defaultRoomId').value),
     hotkey: $('hotkey').value.trim() || 'Control+Alt+S',
     authToken: $('authToken').value.trim(),
     trustInvalidServerCertificate: $('trustInvalidServerCertificate').checked,
-    maxBitrateKbps: bitrate,
+    videoQuality: $('videoQuality').value,
+    frameRate: Number($('frameRate').value),
+    audioMode: $('audioMode').value,
+    notificationsEnabled: $('notificationsEnabled').checked,
+    showChatOverlay: $('showChatOverlay').checked,
   });
-  $('maxBitrateKbps').value = cfg.maxBitrateKbps;
+  $('videoQuality').value = cfg.videoQuality || '1080p';
+  $('frameRate').value = cfg.frameRate || 30;
+  $('audioMode').value = cfg.audioMode || 'off';
+  $('notificationsEnabled').checked = cfg.notificationsEnabled === true;
   $('configPath').textContent = `配置文件：${cfg.configPath}`;
   $('trustInvalidServerCertificate').checked = cfg.trustInvalidServerCertificate === true;
   $('msg').textContent = '已保存；地址或证书变更需重启应用';
+  $('defaultRoomId').value = normalizeRoomId(cfg.defaultRoomId);
   setTimeout(() => ($('msg').textContent = ''), 2200);
   } catch (err) { $('msg').textContent = err.message || '保存失败'; }
 }

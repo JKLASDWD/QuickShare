@@ -1,0 +1,11 @@
+.room-chat { display:flex;flex-direction:column;min-height:230px;max-height:440px;background:#1d2330;border:1px solid #2c3446;border-radius:8px;padding:12px;text-align:left;gap:8px;font:13px/1.5 "Segoe UI","Microsoft YaHei",sans-serif;color:#e8ecf4; }
+.room-chat summary { cursor:pointer;color:#a6b6cc; }
+.chat-members { max-height:100px;overflow:auto;padding:4px 0;overflow-wrap:anywhere; }
+.chat-messages { flex:1;min-height:100px;overflow:auto;user-select:text;overflow-wrap:anywhere; }
+.chat-message { padding:6px 0;border-bottom:1px solid #2c3446;white-space:pre-wrap; }
+.chat-message small { color:#9eb9df; }
+.chat-form { display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0;border:0;background:transparent; }
+.chat-form textarea { flex:1;min-width:100px;resize:vertical;background:#12161f;color:#e8ecf4;border:1px solid #2c3446;border-radius:5px;padding:8px;font:inherit; }
+.chat-form button { padding:6px 12px; }
+.chat-error { width:100%;color:#ff8a8a;font-size:12px;min-height:16px; }
+.chat-permission { color:#ffb980;font-size:12px; }

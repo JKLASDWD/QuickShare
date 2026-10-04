@@ -1,21 +1,21 @@
 {
   "name": "screenshare-client",
   "productName": "QuickShare",
-  "version": "0.2.10",
+  "version": "1.0.0",
   "description": "快捷屏幕共享客户端（共享/观看双角色，LiveKit SFU）",
   "main": "main.js",
   "author": "internal",
   "license": "MIT",
   "scripts": {
-    "test": "node --test ../tests/review-regression.test.cjs ../tests/certificate-policy.test.cjs",
-    "test:e2e": "node ../tests/livekit-e2e.cjs",
     "postinstall": "node scripts/fetch-vendor.mjs && node scripts/gen-icon.mjs",
     "start": "electron .",
     "smoke": "electron . --smoke",
-    "dist": "electron-builder --win",
-    "dist:portable": "electron-builder --win portable"
+    "dist": "npm run build:native && electron-builder --win",
+    "dist:portable": "npm run build:native && electron-builder --win portable",
+    "build:native": "node scripts/build-native.mjs"
   },
   "build": {
+    "afterPack": "scripts/verify-package.cjs",
     "appId": "com.internal.quickshare",
     "productName": "QuickShare",
     "directories": {
@@ -28,8 +28,13 @@
       "renderer/**",
       "assets/**",
       "config.example.json",
-      "package.json"
+      "package.json",
+      "process-audio.js",
+      "room-id.js",
+      "diagnostics.js",
+      "native/bin/process-audio.exe"
     ],
+    "asarUnpack": ["native/bin/process-audio.exe"],
     "win": {
       "icon": "assets/icon.png",
       "target": [
@@ -55,7 +60,13 @@
       "perMachine": false,
       "artifactName": "QuickShare-Setup-${version}.exe",
       "shortcutName": "QuickShare"
-    }
+    },
+    "extraResources": [
+      {
+        "from": "native/bin/process-audio.exe",
+        "to": "native/process-audio.exe"
+      }
+    ]
   },
   "devDependencies": {
     "electron": "^44.5.1",

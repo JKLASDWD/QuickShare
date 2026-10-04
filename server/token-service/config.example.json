@@ -4,7 +4,7 @@
     "httpUrl": "http://localhost:7880",
     "wsUrl": "ws://localhost:7880",
     "apiKey": "devkey",
-    "apiSecret": "secret"
+    "apiSecret": ""
   },
   "rooms": {
     "tokenTtlMinutes": 240,
