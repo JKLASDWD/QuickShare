@@ -6,6 +6,11 @@ import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+const out = path.join(here, '..', 'assets', 'icon.png');
+if (fs.existsSync(out)) {
+  console.log('[gen-icon] using assets/icon.png from source');
+  process.exit(0);
+}
 const SIZE = 256;
 
 const px = new Uint8Array(SIZE * SIZE * 4);
@@ -80,7 +85,6 @@ const png = Buffer.concat([
   chunk('IEND', Buffer.alloc(0)),
 ]);
 
-const out = path.join(here, '..', 'assets', 'icon.png');
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, png);
 console.log(`[gen-icon] wrote assets/icon.png ${SIZE}x${SIZE} (${png.length} bytes)`);

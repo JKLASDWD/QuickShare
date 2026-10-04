@@ -4,7 +4,6 @@ dist/
 coverage/
 /release/
 /client/renderer/vendor/
-/client/assets/icon.png
 /client/native/build/
 /client/native/bin/
 

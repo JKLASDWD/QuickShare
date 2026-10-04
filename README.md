@@ -4,6 +4,8 @@
 
 当前版本：**1.0.0**。客户端使用 Electron，服务端使用 LiveKit 和 Node.js。
 
+[下载客户端](https://github.com/JKLASDWD/QuickShare/releases/latest) · [自动构建](https://github.com/JKLASDWD/QuickShare/actions/workflows/build.yml)
+
 ## 功能
 
 - 屏幕、窗口共享，支持应用声音、系统声音和麦克风。
@@ -35,3 +37,5 @@
 | 从源码构建和打包 | [开发指南](docs/开发指南.md) |
 
 应用声音需要满足系统支持条件；独占全屏游戏可能遮挡弹幕，建议使用无边框全屏。具体边界见使用说明。
+
+推送 `main` 后 GitHub Actions 自动编译 Windows 客户端；推送与版本一致的 `v*` 标签后自动发布安装包。[构建与发布步骤](docs/开发指南.md#5-github-自动构建与发布)。

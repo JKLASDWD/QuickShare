@@ -1,0 +1,110 @@
+name: Build and release Windows client
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-build-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - name: Verify version and release tag
+        id: version
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $package = Get-Content client/package.json -Raw | ConvertFrom-Json
+          $lock = Get-Content client/package-lock.json -Raw | ConvertFrom-Json -AsHashtable
+          $version = $package.version
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid version' }
+          if ($lock.version -ne $version -or $lock.packages[''].version -ne $version) { throw 'Package and lock versions differ' }
+          if ($env:GITHUB_REF.StartsWith('refs/tags/') -and $env:GITHUB_REF_NAME -ne "v$version") { throw 'Tag must match package version' }
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+      - name: Install locked dependencies
+        working-directory: client
+        run: npm ci
+      - name: Build native audio module and both clients
+        working-directory: client
+        run: npm run dist -- --publish never
+      - name: Package public source
+        shell: pwsh
+        run: ./scripts/package-source.ps1
+      - name: Prepare installers, licenses and checksums
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = $env:RELEASE_VERSION
+          foreach ($name in @("QuickShare-Portable-$version.exe", "QuickShare-Setup-$version.exe")) {
+            $source = Join-Path client/dist $name
+            if (-not (Test-Path -LiteralPath $source)) { throw "Missing installer: $name" }
+            Copy-Item -LiteralPath $source -Destination (Join-Path release $name)
+          }
+          Compress-Archive -LiteralPath client/dist/win-unpacked/LICENSE.electron.txt,client/dist/win-unpacked/LICENSES.chromium.html -DestinationPath "release/QuickShare-ThirdParty-Licenses-$version.zip"
+          $sums = Get-ChildItem release -File | Sort-Object Name | ForEach-Object {
+            $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($_.Name)"
+          }
+          $sums | Set-Content release/SHA256SUMS.txt -Encoding utf8
+      - name: Upload compiled clients and public source
+        uses: actions/upload-artifact@v7
+        with:
+          name: QuickShare-${{ steps.version.outputs.version }}-windows-x64
+          path: release/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: QuickShare-${{ needs.build.outputs.version }}-windows-x64
+          path: release
+      - name: Publish versioned release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if draft=$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft 2>/dev/null); then
+            if [ "$draft" = true ]; then
+              echo "An unfinished draft already exists. Complete it before rerunning publication."
+              exit 1
+            fi
+            echo "Release $RELEASE_TAG already exists; its files are preserved."
+            exit 0
+          fi
+          gh release create "$RELEASE_TAG" release/* --verify-tag --title "QuickShare $RELEASE_TAG" --generate-notes --draft
+          gh release edit "$RELEASE_TAG" --draft=false
